@@ -1,0 +1,15 @@
+include:
+  remote: "https://github.com/git-developer/docker-support/raw/v3.2.1/gitlab-ci/docker-template.yml"
+
+variables:
+  IMAGE_PLATFORMS: 'linux/amd64'
+
+read_application_tags:
+  stage: post_checkout
+  image: busybox
+  artifacts:
+    paths:
+    - tags
+  script:
+  - mkdir -p tags
+  - echo >tags/build-date "${CI_PROJECT_PATH}:$(date --utc -I)"

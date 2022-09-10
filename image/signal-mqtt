@@ -1,0 +1,67 @@
+#!/bin/sh
+set -eu
+
+signal_data="${XDG_DATA_HOME:-${HOME}/.local/share}/signal-cli/data"
+MQTT_TOPIC_PREFIX="${MQTT_TOPIC_PREFIX:-signal}"
+MQTT_PUBLISH_TOPIC="${MQTT_PUBLISH_TOPIC:-${MQTT_TOPIC_PREFIX}/receive}"
+MQTT_SUBSCRIBE_TOPIC="${MQTT_SUBSCRIBE_TOPIC:-${MQTT_TOPIC_PREFIX}/send}"
+MQTT_LOG_TOPIC="${MQTT_LOG_TOPIC:-${MQTT_TOPIC_PREFIX}/log}"
+SIGNAL_ACCOUNT="${SIGNAL_ACCOUNT:-$(jq -r '.accounts[0].number' <"${signal_data}/accounts.json")}"
+
+_publish() {
+  local topic="${1}" message="${2}"
+
+    # xargs has a default limit of ~30000 bytes for the command line, which may be too small.
+    # Thus, the limit is set slightly above the actual size.
+    # `LC_ALL` is set to get the string length in bytes, not characters.
+    xargs_limit=$(LC_ALL=C expr 50 + "${#topic}" + "${#message}" + "${#MQTT_PUBLISH_OPTIONS}")
+
+    echo "${MQTT_PUBLISH_OPTIONS}" | xargs -s "${xargs_limit}" mosquitto_pub -t "${topic}" -m "${message}"
+}
+
+log() {
+  echo >&2 "${@}"
+  if [ "${MQTT_LOG:-false}" = 'true' ]; then
+    _publish "${MQTT_LOG_TOPIC}" "${*}"
+  fi
+}
+
+mqtt_publish() {
+  while read -r json_response; do
+    if [ "${MQTT_PUBLISH_JSON_RESPONSE:-false}" = 'true' ]; then
+      _publish "${MQTT_PUBLISH_TOPIC}" "${json_response}"
+    fi
+
+    if [ "${MQTT_PUBLISH_TOPIC_PER_SOURCE_NUMBER:-true}" = 'true' ]; then
+      echo "${json_response}" \
+      | jq -r '.params.envelope.sourceNumber + " " + .params.envelope.dataMessage.message' \
+      | while read -r source_number message; do
+        if [ "${message}" ]; then
+          _publish "${MQTT_PUBLISH_TOPIC}/${source_number#+}" "${message}"
+        fi
+      done
+    fi
+  done
+}
+
+mqtt_subscribe() {
+  echo "${MQTT_SUBSCRIBE_OPTIONS}" \
+  | xargs mosquitto_sub -t "${MQTT_SUBSCRIBE_TOPIC}/#" -v \
+  | while read -r topic payload; do
+    case "${topic}" in
+      "${MQTT_SUBSCRIBE_TOPIC}") printf '%s\n' "${payload}" ;;
+      "${MQTT_SUBSCRIBE_TOPIC}"/*)
+        jq --null-input --compact-output --arg recipient "+${topic##*/}" --arg message "${payload}" \
+        '{jsonrpc:"2.0", method:"send", params:{recipient:$recipient, message:$message}}'
+        ;;
+      *) log "Ignoring message on unsupported topic ${topic}" ;;
+    esac
+  done
+}
+
+main() {
+  log "Starting ${0}"
+  mqtt_subscribe | signal-cli --account "${SIGNAL_ACCOUNT}" ${DEBUG:+-v}${TRACE:+-v -v} jsonRpc | mqtt_publish
+}
+
+main "${@}"
