@@ -1,4 +1,7 @@
 #!/bin/sh
+#
+# A gateway between Signal messages and MQTT
+#
 set -eu
 
 signal_data="${XDG_DATA_HOME:-${HOME}/.local/share}/signal-cli/data"
@@ -8,6 +11,14 @@ MQTT_SUBSCRIBE_TOPIC="${MQTT_SUBSCRIBE_TOPIC:-${MQTT_TOPIC_PREFIX}/send}"
 MQTT_LOG_TOPIC="${MQTT_LOG_TOPIC:-${MQTT_TOPIC_PREFIX}/log}"
 SIGNAL_ACCOUNT="${SIGNAL_ACCOUNT:-$(jq -r '.accounts[0].number' <"${signal_data}/accounts.json")}"
 
+#######################################
+# Publish a message via MQTT.
+# Globals:
+#   MQTT_PUBLISH_OPTIONS
+# Arguments:
+#   1: MQTT topic
+#   2: Message
+#######################################
 _publish() {
   local topic="${1}" message="${2}"
 
@@ -19,6 +30,53 @@ _publish() {
     echo "${MQTT_PUBLISH_OPTIONS}" | xargs -s "${xargs_limit}" mosquitto_pub -t "${topic}" -m "${message}"
 }
 
+#######################################
+# Build a JSON-RPC object to send a message.
+# Arguments:
+#   1: Message
+#   2: Name of a method parameter
+#   3: Value of the method parameter
+# Outputs:
+#   JSON-RPC object
+#######################################
+_build_json_send() {
+  local message="${1}" name="${2}" value="${3}"
+  jq --null-input --compact-output --arg name "${name}" --arg value "${value}" --arg message "${message}" \
+  '{jsonrpc:"2.0", method:"send", params:{($name):$value, message:$message}}'
+}
+
+#
+# base64url encoding is required when a base64-encoded string
+# (e.g. group-id) is used as part of an mqtt topic.
+#
+
+#######################################
+# Convert a text from base64 to base64url.
+# Arguments:
+#   1: Text in base64 encoding
+# Outputs:
+#   Text in base64url encoding
+#######################################
+_to_base64url() {
+  echo "${1}" | tr '/+' '_-'
+}
+
+#######################################
+# Convert a text from base64url to base64.
+# Arguments:
+#   1: Text in base64url encoding
+# Outputs:
+#   Text in base64 encoding
+#######################################
+_from_base64url() {
+  echo "${1}" | tr '_-' '/+'
+}
+
+#######################################
+# Write one or more arguments to the log
+# Arguments:
+#  Log messages
+#######################################
 log() {
   echo >&2 "${@}"
   if [ "${MQTT_LOG:-false}" = 'true' ]; then
@@ -26,6 +84,12 @@ log() {
   fi
 }
 
+#######################################
+# Read a JSON RPC object from stdin,
+# build a message and publish it via MQTT.
+# Inputs:
+#  A JSON RPC object
+#######################################
 mqtt_publish() {
   while read -r json_response; do
     if [ "${MQTT_PUBLISH_JSON_RESPONSE:-false}" = 'true' ]; then
@@ -34,31 +98,44 @@ mqtt_publish() {
 
     if [ "${MQTT_PUBLISH_TOPIC_PER_SOURCE_NUMBER:-true}" = 'true' ]; then
       echo "${json_response}" \
-      | jq -r '.params.envelope.sourceNumber + " " + .params.envelope.dataMessage.message' \
-      | while read -r source_number message; do
+      | jq -r '.params.envelope | (.sourceNumber + "," + (.dataMessage | .groupInfo.groupId + "," + .message))' \
+      | while IFS=, read -r source_number group_id message; do
         if [ "${message}" ]; then
-          _publish "${MQTT_PUBLISH_TOPIC}/${source_number#+}" "${message}"
+          topic="${MQTT_PUBLISH_TOPIC}/${source_number#+}${group_id:+/$(_to_base64url "${group_id}")}"
+          _publish "${topic}" "${message}"
         fi
       done
     fi
   done
 }
 
+#######################################
+# Subscribe to a MQTT topic and convert each incoming message
+# to a JSON RPC object.
+# Outputs:
+#   One JSON RPC object per incoming message
+#######################################
 mqtt_subscribe() {
   echo "${MQTT_SUBSCRIBE_OPTIONS}" \
   | xargs mosquitto_sub -t "${MQTT_SUBSCRIBE_TOPIC}/#" -v \
   | while read -r topic payload; do
     case "${topic}" in
       "${MQTT_SUBSCRIBE_TOPIC}") printf '%s\n' "${payload}" ;;
+      "${MQTT_SUBSCRIBE_TOPIC}"/group/*)
+        _build_json_send "${payload}" groupId "$(_from_base64url "${topic##*/}")"
+        ;;
       "${MQTT_SUBSCRIBE_TOPIC}"/*)
-        jq --null-input --compact-output --arg recipient "+${topic##*/}" --arg message "${payload}" \
-        '{jsonrpc:"2.0", method:"send", params:{recipient:$recipient, message:$message}}'
+        _build_json_send "${payload}" recipient "+${topic##*/}"
         ;;
       *) log "Ignoring message on unsupported topic ${topic}" ;;
     esac
   done
 }
 
+
+#######################################
+# Start the application.
+#######################################
 main() {
   log "Starting ${0}"
   mqtt_subscribe | signal-cli --account "${SIGNAL_ACCOUNT}" ${DEBUG:+-v}${TRACE:+-v -v} jsonRpc | mqtt_publish
