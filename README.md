@@ -31,7 +31,7 @@ Docker image to send and receive messages for the [Signal](https://signal.org/) 
 
 3. Send and receive messages:
     ```sh
-    $ mosquitto_sub -v -h broker -t signal/# &
+    $ mosquitto_sub -v -h broker -t 'signal/#' &
     signal/receive/491713920000 Incoming message
     $ mosquitto_pub -v -h broker -t signal/send/491713920000 -m 'Outgoing message'
     signal/send/491713920000 Outgoing message
@@ -41,8 +41,8 @@ Docker image to send and receive messages for the [Signal](https://signal.org/) 
 * A phone number that is registered as a Signal account (see [Registration with captcha](https://github.com/AsamK/signal-cli/wiki/Registration-with-captcha))
 * Docker Compose
 
-The Docker Compose [documentation](https://docs.docker.com/compose/install/)
-contains a comprehensive guide explaining several install options. On recent debian-based systems, Docker Compose may be installed by calling
+
+  The Docker Compose [documentation](https://docs.docker.com/compose/install/) contains a comprehensive guide explaining several install options. On recent debian-based systems, Docker Compose may be installed by calling
   ```sh
   $ sudo apt install docker-compose
   ```
@@ -50,17 +50,16 @@ contains a comprehensive guide explaining several install options. On recent deb
 ## Commands
 
 ### Lifecycle commands
-All commands assume that the container is named `signal-mqtt`.
 | Action | Command
 | ------ | -------
-| Start the server | `docker-compose up -d`
-| Stop the server  | `docker-compose down`
-| View the server logs | `docker-compose logs -f `
+| Start the container | `docker-compose up -d`
+| Stop the container  | `docker-compose down`
+| View the logs       | `docker-compose logs -f `
 
 ### MQTT commands
 The following values are used in the examples:
-* Phone number: `+491713920000`
 * Account number of signal-mqtt: `+493023125000`
+* Phone number: `+491713920000`
 * Hostname of the MQTT broker: `broker`
 * Group Name: _Admins_
 * Group ID: `LS0+YWRtaW5zPz8/Cg==`
@@ -84,8 +83,10 @@ The following values are used in the examples:
 
 #### Send a text message to a group
 * Topic: `<TOPIC_PREFIX>/<MQTT_SUBSCRIBE_TOPIC>/group/<BASE64URL_ENCODED_GROUP_ID>`
-* Note: The group-id (which is `base64 `encoded) must be converted to `base64url` encoding
-  by replacing `+` with `-` and `/` with `_`.
+* Note: The group id (which is `base64` encoded) must be converted to `base64url` encoding
+  by applying the following replacements:
+  - `+` (plus) becomes `-` (minus)
+  - `/` (slash) becomes `_` (underscore)
 * Example:
   ```sh
   $ mosquitto_pub -h broker -t signal/send/group/LS0-YWRtaW5zPz8_Cg== -m 'Outgoing message'
@@ -94,6 +95,11 @@ The following values are used in the examples:
 
 #### Receive a text message from a group
 * Topic: `<TOPIC_PREFIX>/<MQTT_PUBLISH_TOPIC>/<PHONE_NUMBER_WITHOUT_LEADING_PLUS>/<BASE64URL_ENCODED_GROUP_ID>`
+* Note: The last segment of the topic is `base64url` encoded.
+  To retrieve the group id, it must be converted to `base64` encoding
+  by applying the following replacements:
+  - `-` (minus) becomes `+` (plus)
+  - `_` (underscore) becomes `/` (slash)
 * Example:
   The text _Incoming message_ is sent from the phone to the group _Admins_.
   ```sh
@@ -110,11 +116,11 @@ The following values are used in the examples:
   The text _Outgoing message_ is sent to the phone.
 
 #### Receive JSON-RPC messages
-* Options: `MQTT_PUBLISH_JSON_RESPONSE: "true"`
 * Topic: `<TOPIC_PREFIX>/<MQTT_PUBLISH_TOPIC>`
+* Required configuration option: `MQTT_PUBLISH_JSON_RESPONSE: "true"`
 * Example:
   ```sh
-  $ mosquitto_sub -v -h broker -t signal/# &
+  $ mosquitto_sub -v -h broker -t 'signal/#' &
   # The user starts to type 'Incoming message' on the phone
   signal/receive {"jsonrpc":"2.0","method":"receive","params":{"envelope":{"source":"+491713920000","sourceNumber":"+491713920000","sourceUuid":"3689ed97-01b2-4fa5-8ed8-18174ad5cf15","sourceName":"Sally Sender","sourceDevice":1,"timestamp":1662783654115,"typingMessage":{"action":"STARTED","timestamp":1662783654115}},"account":"+493023125000","subscription":0}}
   # The text 'Incoming message' is completed
