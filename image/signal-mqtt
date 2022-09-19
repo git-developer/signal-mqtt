@@ -27,7 +27,7 @@ _publish() {
     # `LC_ALL` is set to get the string length in bytes, not characters.
     xargs_limit=$(LC_ALL=C expr 50 + "${#topic}" + "${#message}" + "${#MQTT_PUBLISH_OPTIONS}")
 
-    echo "${MQTT_PUBLISH_OPTIONS}" | xargs -s "${xargs_limit}" mosquitto_pub -t "${topic}" -m "${message}"
+    printf '%s' "${MQTT_PUBLISH_OPTIONS}" | xargs -s "${xargs_limit}" mosquitto_pub -t "${topic}" -m "${message}"
 }
 
 #######################################
@@ -58,7 +58,7 @@ _build_json_send() {
 #   Text in base64url encoding
 #######################################
 _to_base64url() {
-  echo "${1}" | tr '/+' '_-'
+  printf '%s' "${1}" | tr '/+' '_-'
 }
 
 #######################################
@@ -69,7 +69,7 @@ _to_base64url() {
 #   Text in base64 encoding
 #######################################
 _from_base64url() {
-  echo "${1}" | tr '_-' '/+'
+  printf '%s' "${1}" | tr '_-' '/+'
 }
 
 #######################################
@@ -78,7 +78,7 @@ _from_base64url() {
 #  Log messages
 #######################################
 log() {
-  echo >&2 "${@}"
+  printf '%s\n' >&2 "${@}"
   if [ "${MQTT_LOG:-false}" = 'true' ]; then
     _publish "${MQTT_LOG_TOPIC}" "${*}"
   fi
@@ -96,13 +96,41 @@ mqtt_publish() {
       _publish "${MQTT_PUBLISH_TOPIC}" "${json_response}"
     fi
 
-    if [ "${MQTT_PUBLISH_TOPIC_PER_SOURCE_NUMBER:-true}" = 'true' ]; then
-      echo "${json_response}" \
-      | jq -r '.params.envelope | (.sourceNumber + "," + (.dataMessage | .groupInfo.groupId + "," + .message))' \
-      | while IFS=, read -r source_number group_id message; do
+    if [ "${MQTT_PUBLISH_PER_SOURCE:-true}" = 'true' ]; then
+      variables='source_number timestamp group_id quote_timestamp reaction_emoji reaction_timestamp message'
+      printf '%s' "${json_response}" \
+      | jq -r '.params.envelope
+               | [.sourceNumber, (.dataMessage | .timestamp, .groupInfo.groupId, .quote.id, (.reaction | .emoji, .targetSentTimestamp), .message)]
+               | map_values(. // "\u0000")
+               | @tsv' \
+      | while IFS=$(printf '\t') read -r $(printf "${variables}"); do
+        for var in $(printf "${variables}"); do eval "${var}=\$(printf \"\${$var}\")"; done
+        if [ "${reaction_emoji}" ]; then
+          message="${reaction_emoji}"
+        fi
+
         if [ "${message}" ]; then
-          topic="${MQTT_PUBLISH_TOPIC}/${source_number#+}${group_id:+/$(_to_base64url "${group_id}")}"
-          _publish "${topic}" "${message}"
+          topic="${MQTT_PUBLISH_TOPIC}/${source_number#+}"
+
+          if [ "${MQTT_PUBLISH_PER_SOURCE_AS_JSON:-false}" = 'true' ]; then
+            _publish "${topic}" "${json_response}"
+          fi
+
+          if [ "${MQTT_PUBLISH_PER_SOURCE_AS_TEXT:-true}" = 'true' ]; then
+            if [ "${MQTT_PUBLISH_PER_SOURCE_TIMESTAMP:-true}" = 'true' ]; then
+              topic="${topic}/timestamp/${timestamp}"
+            fi
+            if [ "${group_id}" ]; then
+              topic="${topic}/group/$(_to_base64url "${group_id}")"
+            fi
+            if [ "${quote_timestamp}" ]; then
+              topic="${topic}/quote/${quote_timestamp}"
+            fi
+            if [ "${reaction_timestamp}" ]; then
+              topic="${topic}/reaction/${reaction_timestamp}"
+            fi
+            _publish "${topic}" "${message}"
+          fi
         fi
       done
     fi
@@ -116,7 +144,7 @@ mqtt_publish() {
 #   One JSON RPC object per incoming message
 #######################################
 mqtt_subscribe() {
-  echo "${MQTT_SUBSCRIBE_OPTIONS}" \
+  printf '%s' "${MQTT_SUBSCRIBE_OPTIONS}" \
   | xargs mosquitto_sub -t "${MQTT_SUBSCRIBE_TOPIC}/#" -v \
   | while read -r topic payload; do
     case "${topic}" in

@@ -73,12 +73,34 @@ The following values are used in the examples:
   The text _Outgoing message_ is sent to the phone.
 
 #### Receive a text message
+* Topic: `<TOPIC_PREFIX>/<MQTT_PUBLISH_TOPIC>/<PHONE_NUMBER_WITHOUT_LEADING_PLUS>/timestamp/<TIMESTAMP>`
+* Example:
+  The text _Incoming message_ is sent from the phone to `+493023125000`.
+  ```sh
+  $ mosquitto_sub -v -h broker -t signal/#
+  signal/receive/491713920000/timestamp/1577882096000 Incoming message
+  ```
+
+#### Receive a text message without timestamp
 * Topic: `<TOPIC_PREFIX>/<MQTT_PUBLISH_TOPIC>/<PHONE_NUMBER_WITHOUT_LEADING_PLUS>`
+* Required configuration option: `MQTT_PUBLISH_PER_SOURCE_TIMESTAMP: "false"`
 * Example:
   The text _Incoming message_ is sent from the phone to `+493023125000`.
   ```sh
   $ mosquitto_sub -v -h broker -t signal/#
   signal/receive/491713920000 Incoming message
+  ```
+
+#### Receive a message in JSON format
+* Topic: `<TOPIC_PREFIX>/<MQTT_PUBLISH_TOPIC>/<PHONE_NUMBER_WITHOUT_LEADING_PLUS>`
+* Required configuration option: `MQTT_PUBLISH_PER_SOURCE_AS_JSON: "true"`
+* Note: To suppress publishing of the same message in text format, additionally set `MQTT_PUBLISH_PER_SOURCE_AS_TEXT: "false"`
+* Example:
+  The text _Incoming message_ is sent from the phone to `+493023125000`.
+  ```sh
+  $ mosquitto_sub -v -h broker -t signal/#
+  signal/receive/491713920000 {"jsonrpc":"2.0","method":"receive","params":{"envelope":{"source":"+491713920000","sourceNumber":"+491713920000","sourceUuid":"3689ed97-01b2-4fa5-8ed8-18174ad5cf15","sourceName":"Sally Sender","sourceDevice":1,"timestamp":1577882096000,"dataMessage":{"timestamp":1577882096000,"message":"Incoming message","expiresInSeconds":0,"viewOnce":false}},"account":"+493023125000","subscription":0}}
+  signal/receive/491713920000/timestamp/1577882096000 Incoming message
   ```
 
 #### Send a text message to a group
@@ -94,7 +116,7 @@ The following values are used in the examples:
   The text _Outgoing message_ is sent to the group _Admins_.
 
 #### Receive a text message from a group
-* Topic: `<TOPIC_PREFIX>/<MQTT_PUBLISH_TOPIC>/<PHONE_NUMBER_WITHOUT_LEADING_PLUS>/<BASE64URL_ENCODED_GROUP_ID>`
+* Topic: `<TOPIC_PREFIX>/<MQTT_PUBLISH_TOPIC>/<PHONE_NUMBER_WITHOUT_LEADING_PLUS>/timestamp/<TIMESTAMP>/group/<BASE64URL_ENCODED_GROUP_ID>`
 * Note: The last segment of the topic is `base64url` encoded.
   To retrieve the group id, it must be converted to `base64` encoding
   by applying the following replacements:
@@ -104,8 +126,28 @@ The following values are used in the examples:
   The text _Incoming message_ is sent from the phone to the group _Admins_.
   ```sh
   $ mosquitto_sub -v -h broker -t signal/#
-  signal/receive/491713920000/LS0-YWRtaW5zPz8_Cg== Incoming message
+  signal/receive/491713920000/timestamp/1577882096000/group/LS0-YWRtaW5zPz8_Cg== Incoming message
   ```
+
+#### Receive a quotation message
+* Topic: `<TOPIC_PREFIX>/<MQTT_PUBLISH_TOPIC>/<PHONE_NUMBER_WITHOUT_LEADING_PLUS>/timestamp/<TIMESTAMP>/quote/<TIMESTAMP_OF_QUOTED_MESSAGE>`
+* Example:
+  The text _Incoming quote_ is sent from the phone as quotation to the message _Outgoing message_ from above.
+  ```sh
+  $ mosquitto_sub -v -h broker -t signal/#
+  signal/receive/491713920000/timestamp/1577882100000/quote/1577882096000 Incoming quote
+  ```
+* Note: the combination of group and quotation is possible within a single message.
+
+#### Receive a reaction (emoji)
+* Topic: `<TOPIC_PREFIX>/<MQTT_PUBLISH_TOPIC>/<PHONE_NUMBER_WITHOUT_LEADING_PLUS>/timestamp/<TIMESTAMP>/reaction/<TIMESTAMP_OF_ORIGINAL_MESSAGE>`
+* Example:
+  The emoji 👍 is sent from the phone as reaction to the message _Outgoing message_ from above.
+  ```sh
+  $ mosquitto_sub -v -h broker -t signal/#
+  signal/receive/491713920000/timestamp/1577882100000/reaction/1577882096000 👍
+  ```
+* Note: the combination of group and reaction is possible within a single message.
 
 #### Send a JSON-RPC message
 * Topic: `<TOPIC_PREFIX>/<MQTT_SUBSCRIBE_TOPIC>`
@@ -122,19 +164,19 @@ The following values are used in the examples:
   ```sh
   $ mosquitto_sub -v -h broker -t 'signal/#' &
   # The user starts to type 'Incoming message' on the phone
-  signal/receive {"jsonrpc":"2.0","method":"receive","params":{"envelope":{"source":"+491713920000","sourceNumber":"+491713920000","sourceUuid":"3689ed97-01b2-4fa5-8ed8-18174ad5cf15","sourceName":"Sally Sender","sourceDevice":1,"timestamp":1662783654115,"typingMessage":{"action":"STARTED","timestamp":1662783654115}},"account":"+493023125000","subscription":0}}
+  signal/receive {"jsonrpc":"2.0","method":"receive","params":{"envelope":{"source":"+491713920000","sourceNumber":"+491713920000","sourceUuid":"3689ed97-01b2-4fa5-8ed8-18174ad5cf15","sourceName":"Sally Sender","sourceDevice":1,"timestamp":1577882080000,"typingMessage":{"action":"STARTED","timestamp":1577882080000}},"account":"+493023125000","subscription":0}}
   # The text 'Incoming message' is completed
-  signal/receive {"jsonrpc":"2.0","method":"receive","params":{"envelope":{"source":"+491713920000","sourceNumber":"+491713920000","sourceUuid":"3689ed97-01b2-4fa5-8ed8-18174ad5cf15","sourceName":"Sally Sender","sourceDevice":1,"timestamp":1662783660699,"typingMessage":{"action":"STOPPED","timestamp":1662783660699}},"account":"+493023125000","subscription":0}}
+  signal/receive {"jsonrpc":"2.0","method":"receive","params":{"envelope":{"source":"+491713920000","sourceNumber":"+491713920000","sourceUuid":"3689ed97-01b2-4fa5-8ed8-18174ad5cf15","sourceName":"Sally Sender","sourceDevice":1,"timestamp":1577882090000,"typingMessage":{"action":"STOPPED","timestamp":1577882090000}},"account":"+493023125000","subscription":0}}
   # The message is sent to +493023125000
-  signal/receive {"jsonrpc":"2.0","method":"receive","params":{"envelope":{"source":"+491713920000","sourceNumber":"+491713920000","sourceUuid":"3689ed97-01b2-4fa5-8ed8-18174ad5cf15","sourceName":"Sally Sender","sourceDevice":1,"timestamp":1662783663560,"dataMessage":{"timestamp":1662783663560,"message":"Incoming message","expiresInSeconds":0,"viewOnce":false}},"account":"+493023125000","subscription":0}}
+  signal/receive {"jsonrpc":"2.0","method":"receive","params":{"envelope":{"source":"+491713920000","sourceNumber":"+491713920000","sourceUuid":"3689ed97-01b2-4fa5-8ed8-18174ad5cf15","sourceName":"Sally Sender","sourceDevice":1,"timestamp":1577882096000,"dataMessage":{"timestamp":1577882096000,"message":"Incoming message","expiresInSeconds":0,"viewOnce":false}},"account":"+493023125000","subscription":0}}
   signal/receive/491713920000 Incoming message
 
   $ mosquitto_pub -h broker -t signal/send/491713920000 -m 'Outgoing message'
   signal/send/491713920000 Outgoing message
   # The message was delivered to mobile phone +491713920000
-  signal/receive {"jsonrpc":"2.0","method":"receive","params":{"envelope":{"source":"+491713920000","sourceNumber":"+491713920000","sourceUuid":"3689ed97-01b2-4fa5-8ed8-18174ad5cf15","sourceName":"Sally Sender","sourceDevice":1,"timestamp":1662783706642,"receiptMessage":{"when":1662783706642,"isDelivery":true,"isRead":false,"isViewed":false,"timestamps":[1662783708533]}},"account":"+493023125000","subscription":0}}
+  signal/receive {"jsonrpc":"2.0","method":"receive","params":{"envelope":{"source":"+491713920000","sourceNumber":"+491713920000","sourceUuid":"3689ed97-01b2-4fa5-8ed8-18174ad5cf15","sourceName":"Sally Sender","sourceDevice":1,"timestamp":1577882097000,"receiptMessage":{"when":1577882097000,"isDelivery":true,"isRead":false,"isViewed":false,"timestamps":[1577882098000]}},"account":"+493023125000","subscription":0}}
   # The message was read on mobile phone +491713920000
-  signal/receive {"jsonrpc":"2.0","method":"receive","params":{"envelope":{"source":"+491713920000","sourceNumber":"+491713920000","sourceUuid":"3689ed97-01b2-4fa5-8ed8-18174ad5cf15","sourceName":"Sally Sender","sourceDevice":1,"timestamp":1662783706824,"receiptMessage":{"when":1662783706824,"isDelivery":false,"isRead":true,"isViewed":false,"timestamps":[1662783708533]}},"account":"+493023125000","subscription":0}}
+  signal/receive {"jsonrpc":"2.0","method":"receive","params":{"envelope":{"source":"+491713920000","sourceNumber":"+491713920000","sourceUuid":"3689ed97-01b2-4fa5-8ed8-18174ad5cf15","sourceName":"Sally Sender","sourceDevice":1,"timestamp":1577882099000,"receiptMessage":{"when":1577882099000,"isDelivery":false,"isRead":true,"isViewed":false,"timestamps":[1577882098000]}},"account":"+493023125000","subscription":0}}
   ```
 
 #### Run a signal-cli command
@@ -159,7 +201,10 @@ The configuration is based on environment variables.
 |`MQTT_PUBLISH_OPTIONS`|MQTT publish options|All options [supported by `mosquitto_pub`](https://mosquitto.org/man/mosquitto_pub-1.html) except `-t` and `-m`|_none_|`-h broker -id signal-publisher`
 |`MQTT_PUBLISH_TOPIC`|MQTT topic for publishing messages received from Signal|[Topic names](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106)|`${MQTT_TOPIC_PREFIX}/receive`|`chats/from`
 |`MQTT_PUBLISH_JSON_RESPONSE`|Publish all json-rpc responses from signal-cli?|`true` / `false`|`false`|`true`
-|`MQTT_PUBLISH_TOPIC_PER_SOURCE_NUMBER`|Publish incoming messages to a separate MQTT topic per sender?|`true`/ `false`|`true`|`false`
+|`MQTT_PUBLISH_PER_SOURCE`|Publish incoming messages to a separate MQTT topic per source number?|`true`/ `false`|`true`|`false`
+|`MQTT_PUBLISH_PER_SOURCE_AS_JSON`|Publish incoming messages in JSON format?|`true` / `false`|`false`|`true`
+|`MQTT_PUBLISH_PER_SOURCE_AS_TEXT`|Publish incoming messages as plain text? When enabled, metadata properties (e.g. timestamp, group) are added to the topic.|`true` / `false`|`true`|`false`
+|`MQTT_PUBLISH_PER_SOURCE_TIMESTAMP`|Add timestamp to MQTT topic of incoming messages? This is useful to associate a quotation or reaction to its original message.|`true` / `false`|`true`|`false`
 |`MQTT_SUBSCRIBE_OPTIONS`|MQTT subscribe options|All options [supported by `mosquitto_sub`](https://mosquitto.org/man/mosquitto_sub-1.html) except `-t` and formatting-related options like  `-F` & `-N`|_none_|`-h broker -i signal-subscriber`
 |`MQTT_SUBSCRIBE_TOPIC`|MQTT topic to listen for messages that are sent to a Signal receiver|[Topic names](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106)|`${MQTT_TOPIC_PREFIX}/send`|`chats/to`
 |`MQTT_LOG`|Enable logging via MQTT?|`true` / `false`|`false`|`true`
