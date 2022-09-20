@@ -45,31 +45,26 @@ _build_json_send() {
   '{jsonrpc:"2.0", method:"send", params:{($name):$value, message:$message}}'
 }
 
-#
-# base64url encoding is required when a base64-encoded string
-# (e.g. group-id) is used as part of an mqtt topic.
-#
-
 #######################################
-# Convert a text from base64 to base64url.
+# Encode a text to percent-encoding.
 # Arguments:
-#   1: Text in base64 encoding
+#   1: Text
 # Outputs:
-#   Text in base64url encoding
+#   Text in percent-encoding
 #######################################
-_to_base64url() {
-  printf '%s' "${1}" | tr '/+' '_-'
+percent_encode() {
+  printf '%s' "${1}" | jq -sRr @uri
 }
 
 #######################################
-# Convert a text from base64url to base64.
+# Decode a text from percent-encoding.
 # Arguments:
-#   1: Text in base64url encoding
+#   1: Text in percent-encoding
 # Outputs:
-#   Text in base64 encoding
+#   Decoded Text
 #######################################
-_from_base64url() {
-  printf '%s' "${1}" | tr '_-' '/+'
+percent_decode() {
+  printf '%s' "${1}" | printf '%b\n' "$(sed -E -e 's/\+/ /g' -e 's/%([0-9a-fA-F]{2})/\\x\1/g')"
 }
 
 #######################################
@@ -121,7 +116,7 @@ mqtt_publish() {
               topic="${topic}/timestamp/${timestamp}"
             fi
             if [ "${group_id}" ]; then
-              topic="${topic}/group/$(_to_base64url "${group_id}")"
+              topic="${topic}/group/$(percent_encode "${group_id}")"
             fi
             if [ "${quote_timestamp}" ]; then
               topic="${topic}/quote/${quote_timestamp}"
@@ -150,7 +145,7 @@ mqtt_subscribe() {
     case "${topic}" in
       "${MQTT_SUBSCRIBE_TOPIC}") printf '%s\n' "${payload}" ;;
       "${MQTT_SUBSCRIBE_TOPIC}"/group/*)
-        _build_json_send "${payload}" groupId "$(_from_base64url "${topic##*/}")"
+        _build_json_send "${payload}" groupId "$(percent_decode "${topic##*/}")"
         ;;
       "${MQTT_SUBSCRIBE_TOPIC}"/*)
         _build_json_send "${payload}" recipient "+${topic##*/}"

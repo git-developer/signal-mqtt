@@ -104,29 +104,30 @@ The following values are used in the examples:
   ```
 
 #### Send a text message to a group
-* Topic: `<TOPIC_PREFIX>/<MQTT_SUBSCRIBE_TOPIC>/group/<BASE64URL_ENCODED_GROUP_ID>`
-* Note: The group id (which is `base64` encoded) must be converted to `base64url` encoding
-  by applying the following replacements:
-  - `+` (plus) becomes `-` (minus)
-  - `/` (slash) becomes `_` (underscore)
+* Topic: `<TOPIC_PREFIX>/<MQTT_SUBSCRIBE_TOPIC>/group/<PERCENT_ENCODED_GROUP_ID>`
+* Note: The group-id must be percent-encoded.
+  A group-id (which is base64 encoded) may be converted to percent encoding by applying the following replacements:
+  - `+` (plus) becomes `%2B`
+  - `/` (slash) becomes `%2F`
+  - `=` (equals) becomes `%3D`
 * Example:
   ```sh
-  $ mosquitto_pub -h broker -t signal/send/group/LS0-YWRtaW5zPz8_Cg== -m 'Outgoing message'
+  $ mosquitto_pub -h broker -t signal/send/group/LS0%2BYWRtaW5zPz8%2FCg%3D%3D -m 'Outgoing message'
   ```
   The text _Outgoing message_ is sent to the group _Admins_.
 
 #### Receive a text message from a group
-* Topic: `<TOPIC_PREFIX>/<MQTT_PUBLISH_TOPIC>/<PHONE_NUMBER_WITHOUT_LEADING_PLUS>/timestamp/<TIMESTAMP>/group/<BASE64URL_ENCODED_GROUP_ID>`
-* Note: The last segment of the topic is `base64url` encoded.
-  To retrieve the group id, it must be converted to `base64` encoding
-  by applying the following replacements:
-  - `-` (minus) becomes `+` (plus)
-  - `_` (underscore) becomes `/` (slash)
+* Topic: `<TOPIC_PREFIX>/<MQTT_PUBLISH_TOPIC>/<PHONE_NUMBER_WITHOUT_LEADING_PLUS>/timestamp/<TIMESTAMP>/group/<PERCENT_ENCODED_GROUP_ID>`
+* Note: The last segment of the topic is percent-encoded.
+  It may be converted into a (base64 encoded) group-id by applying the following replacements:
+  - `%2B` becomes `+` (plus)
+  - `%2F` becomes `/` (slash)
+  - `%3D` becomes `=` (equals)
 * Example:
   The text _Incoming message_ is sent from the phone to the group _Admins_.
   ```sh
   $ mosquitto_sub -v -h broker -t signal/#
-  signal/receive/491713920000/timestamp/1577882096000/group/LS0-YWRtaW5zPz8_Cg== Incoming message
+  signal/receive/491713920000/timestamp/1577882096000/group/LS0%2BYWRtaW5zPz8%2FCg%3D%3D Incoming message
   ```
 
 #### Receive a quotation message
