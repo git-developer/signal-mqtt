@@ -105,7 +105,7 @@ mqtt_publish() {
         fi
 
         if [ "${message}" ]; then
-          topic="${MQTT_PUBLISH_TOPIC}/${source_number#+}"
+          topic="${MQTT_PUBLISH_TOPIC}/$(percent_encode "${source_number}")"
 
           if [ "${MQTT_PUBLISH_PER_SOURCE_AS_JSON:-false}" = 'true' ]; then
             _publish "${topic}" "${json_response}"
@@ -148,7 +148,7 @@ mqtt_subscribe() {
         _build_json_send "${payload}" groupId "$(percent_decode "${topic##*/}")"
         ;;
       "${MQTT_SUBSCRIBE_TOPIC}"/*)
-        _build_json_send "${payload}" recipient "+${topic##*/}"
+        _build_json_send "${payload}" recipient "$(percent_decode "${topic##*/}")"
         ;;
       *) log "Ignoring message on unsupported topic ${topic}" ;;
     esac
