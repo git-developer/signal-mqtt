@@ -6,8 +6,8 @@ set -eu
 
 signal_data="${XDG_DATA_HOME:-${HOME}/.local/share}/signal-cli/data"
 MQTT_TOPIC_PREFIX="${MQTT_TOPIC_PREFIX:-signal}"
-MQTT_PUBLISH_TOPIC="${MQTT_PUBLISH_TOPIC:-${MQTT_TOPIC_PREFIX}/receive}"
-MQTT_SUBSCRIBE_TOPIC="${MQTT_SUBSCRIBE_TOPIC:-${MQTT_TOPIC_PREFIX}/send}"
+MQTT_PUBLISH_TOPIC="${MQTT_PUBLISH_TOPIC:-${MQTT_TOPIC_PREFIX}/in}"
+MQTT_SUBSCRIBE_TOPIC="${MQTT_SUBSCRIBE_TOPIC:-${MQTT_TOPIC_PREFIX}/out}"
 MQTT_LOG_TOPIC="${MQTT_LOG_TOPIC:-${MQTT_TOPIC_PREFIX}/log}"
 SIGNAL_ACCOUNT="${SIGNAL_ACCOUNT:-$(jq -r '.accounts[0].number' <"${signal_data}/accounts.json")}"
 
@@ -33,21 +33,21 @@ _publish() {
 #######################################
 # Build a JSON-RPC object.
 # Arguments:
-#   1: Method
+#   1: Topic in the form `method[/key/value]...`
 #   2: Message
-#   3: Name of a method parameter
-#   4: Value of the method parameter
 # Outputs:
 #   JSON-RPC object
 #######################################
-_jsonrpc_object() {
-  local method="${1}" message="${2}" param_name="${3}" param_value="${4}"
-  jq --null-input --compact-output \
-    --arg method "${method}" \
-    --arg message "${message}" \
-    --arg param_name "${param_name}" \
-    --arg param_value "${param_value}" \
-  '{jsonrpc:"2.0", method:$method, params:{($param_name):$param_value, message:$message}}'
+to_jsonrpc() {
+  local topic="${1}" message="${2}"
+  printf '%s\n' "${topic}" | jq --raw-input --compact-output --arg message "${message}" '
+    include "url_decode";
+    split("/") + ["message", $message] | {
+      jsonrpc: "2.0",
+      method: .[0],
+      params: [. as $v | range(1; length; 2) | {($v[.]): $v[(.+1)] | url_decode}] | add
+    }
+  '
 }
 
 #######################################
@@ -59,17 +59,6 @@ _jsonrpc_object() {
 #######################################
 percent_encode() {
   printf '%s' "${1}" | jq -sRr @uri
-}
-
-#######################################
-# Decode a text from percent-encoding.
-# Arguments:
-#   1: Text in percent-encoding
-# Outputs:
-#   Decoded Text
-#######################################
-percent_decode() {
-  printf '%s' "${1}" | printf '%b\n' "$(sed -E -e 's/\+/ /g' -e 's/%([0-9a-fA-F]{2})/\\x\1/g')"
 }
 
 #######################################
@@ -148,15 +137,10 @@ mqtt_subscribe() {
   | xargs mosquitto_sub -t "${MQTT_SUBSCRIBE_TOPIC}/#" -v \
   | while read -r topic payload; do
     case "${topic}" in
-      "${MQTT_SUBSCRIBE_TOPIC}")         printf '%s\n' "${payload}" ;;
-      "${MQTT_SUBSCRIBE_TOPIC}"/group/*) method=send && name=groupId ;;
-      "${MQTT_SUBSCRIBE_TOPIC}"/*)       method=send && name=recipient ;;
+      "${MQTT_SUBSCRIBE_TOPIC}")   printf '%s\n' "${payload}" ;;
+      "${MQTT_SUBSCRIBE_TOPIC}"/*) to_jsonrpc "${topic##${MQTT_SUBSCRIBE_TOPIC}/}" "${payload}" ;;
       *) log "Ignoring message on unsupported topic ${topic}" ;;
     esac
-    if [ "${method-}" ]; then
-      _jsonrpc_object "${method}" "${payload}" "${name}" "$(percent_decode "${topic##*/}")"
-    fi
-    unset method name
   done
 }
 
