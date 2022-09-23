@@ -59,13 +59,7 @@ Docker image to send and receive messages for the [Signal](https://signal.org/) 
 | Stop the container  | `docker-compose down`
 | View the logs       | `docker-compose logs -f `
 
-### MQTT commands
-The following values are used in the examples:
-* Account number of signal-mqtt: `+493023125000`
-* Phone number: `+491713920000`
-* Hostname of the MQTT broker: `broker`
-* Group Name: _Admins_
-* Group ID: `LS0+YWRtaW5zPz8/Cg==`
+### Value formatting
 
 #### Percent encoding in MQTT topics
 Some of the values, e.g. international account numbers and base64 encoded group ids,
@@ -84,6 +78,40 @@ Characters with a special meaning in the context of MQTT, base64 and percent-enc
 |    `/`    |  `%2F`   |
 |    `=`    |  `%3D`   |
 
+#### Explicit typing
+
+The default type for all values is `string`, with one exception:
+when a value contains digits only, it is supposed to be of type `number`.
+
+Some parameters require a different type than the default.
+For these cases, the value may be suffixed by a colon (`:`) and a type-id:
+
+  `<PARAMETER>/<PERCENT_ENCODED_VALUE>:<TYPE_ID>`
+
+Some parameters require multiple values;
+in this case, multiple percent-encoded values may be given as comma-separated list.
+
+| Type             | typeid | Topic syntax    | JSON syntax
+| ---              | ---    | ---             | ---
+| String           | s      | `foo:s`         | `"foo"`
+| Number           | n      | `123:n`         | `123`
+| Boolean          | b      | `true:b`        | `true`
+| Array of String  | as     | `foo,bar:as`    | `["foo", "bar"]`
+| Array of Number  | an     | `123,456:an`    | `[123, 456]`
+| Array of Boolean | ab     | `true,false:ab` | `[true, false]`
+
+Example:
+- Topic: `signal/out/send/recipient/%2B491713920000,%2B491713920001:as/quoteTimestamp/1577882096000:n`
+- Parameter _recipient_ contains an array of two phone numbers;
+  parameter _quoteTimestamp_ is explicitely typed as number (although the default would work here, too).
+
+### MQTT commands
+The following values are used in the examples:
+* Account number of signal-mqtt: `+493023125000`
+* Phone number: `+491713920000`
+* Hostname of the MQTT broker: `broker`
+* Group Name: _Admins_
+* Group ID: `LS0+YWRtaW5zPz8/Cg==`
 
 #### Send a text message
 * Topic: `<TOPIC_PREFIX>/<MQTT_SUBSCRIBE_TOPIC>/send/recipient/<PHONE_NUMBER>`

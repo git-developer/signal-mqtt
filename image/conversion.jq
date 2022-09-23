@@ -26,3 +26,22 @@ def url_decode:
          else [ $i + 1, .[1] + $in[$i:$i+1] ]
          end)
   | .[1];  # answer
+
+def cast:
+  def cast_scalar(type_id):
+      if type_id == "n" then tonumber
+    elif type_id == "b" then test("true")
+    elif type_id == null and test("^[0-9]+$") then tonumber
+    else .
+    end;
+
+  def cast_to(type_id):
+    ((type_id // "" | match("^(a?)(.)$").captures | map(.string)) // []) as $t
+    | if $t[0] == "a"
+      then split(",") | map(cast_scalar($t[1]))
+      else cast_scalar($t[1])
+      end;
+
+  split(":") as $v
+  | ($v[0] | url_decode)
+  | cast_to($v[1]);

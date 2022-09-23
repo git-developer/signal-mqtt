@@ -41,11 +41,11 @@ _publish() {
 to_jsonrpc() {
   local topic="${1}" message="${2}"
   printf '%s\n' "${topic}" | jq --raw-input --compact-output --arg message "${message}" '
-    include "url_decode";
+    include "conversion";
     split("/") + ["message", $message] | {
       jsonrpc: "2.0",
       method: .[0],
-      params: [. as $v | range(1; length; 2) | {($v[.]): $v[(.+1)] | url_decode}] | add
+      params: [. as $v | range(1; length; 2) | {($v[.]): $v[(.+1)] | cast}] | add
     }
   '
 }
