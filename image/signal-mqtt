@@ -73,6 +73,14 @@ log() {
   fi
 }
 
+send() {
+  if [ "${LOG_JSONRPC:-false}" = 'true' ]; then
+    { log "$(tee /dev/fd/3)"; } 3>&1
+  else
+    cat -
+  fi
+}
+
 #######################################
 # Read a JSON RPC object from stdin,
 # build a message and publish it via MQTT.
@@ -81,6 +89,10 @@ log() {
 #######################################
 mqtt_publish() {
   while read -r json_response; do
+    if [ "${LOG_JSONRPC:-false}" = 'true' ]; then
+      log "${json_response}"
+    fi
+
     if [ "${MQTT_PUBLISH_JSON_RESPONSE:-false}" = 'true' ]; then
       _publish "${MQTT_PUBLISH_TOPIC}" "${json_response}"
     fi
@@ -140,7 +152,7 @@ mqtt_subscribe() {
       "${MQTT_SUBSCRIBE_TOPIC}")   printf '%s\n' "${payload}" ;;
       "${MQTT_SUBSCRIBE_TOPIC}"/*) to_jsonrpc "${topic##${MQTT_SUBSCRIBE_TOPIC}/}" "${payload}" ;;
       *) log "Ignoring message on unsupported topic ${topic}" ;;
-    esac
+    esac | send
   done
 }
 

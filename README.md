@@ -237,6 +237,7 @@ The configuration is based on environment variables.
 |`MQTT_LOG`|Enable logging via MQTT?|`true` / `false`|`false`|`true`
 |`MQTT_LOG_TOPIC`|MQTT topic to publish the log to|`${MQTT_TOPIC_PREFIX}/log`|`chats/logs`
 |`SIGNAL_ACCOUNT`|Phone number of the signal account|International phone number format with leading `+`|Account from signal-cli configuration|`+493023125000`
+|`LOG_JSONRPC`|Enable logging of JSON RPC messages?|`true` / `false`|`false`|`true`
 |`DEBUG`|Enable debug logging?|`true` / `false`|`false`|`true`
 |`TRACE`|Enable trace logging?|`true` / `false`|`false`|`true`
 
