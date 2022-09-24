@@ -50,21 +50,27 @@ Docker image to send and receive messages for the [Signal](https://signal.org/) 
   $ sudo apt install docker-compose
   ```
 
-## Commands
+## Topic formatting
+MQTT topics have the following structure:
 
-### Lifecycle commands
-| Action | Command
-| ------ | -------
-| Start the container | `docker-compose up -d`
-| Stop the container  | `docker-compose down`
-| View the logs       | `docker-compose logs -f `
+  _<PREFIX>_`/`_<DIRECTION>_`/`_<METHOD>_[`/`_<PARAMETER_NAME>_`/`_<PARAMETER_VALUE>_]...
 
-### Value formatting
+- A prefix, defaulting to `signal`
+- The direction, defaulting to either `in` or `out`
+- The rpc method, e.g. `send` or `receive`
+- An optional list of parameters
+  - Each parameter consists of a name and a value.
+  - The name is a simple text.
+  - The value is either a scalar value or a comma-separated list of scalar values.
+    The value may be suffixed by a type-id if required.
+    All scalar values are percent-encoded.
 
-#### Percent encoding in MQTT topics
+### Percent encoding
 Some of the values, e.g. international account numbers and base64 encoded group ids,
 may include special characters which are forbidden as part of an MQTT topic.
 Thus, all values in MQTT topics are percent-encoded (aka URL-encoded).
+
+Example: topic `signal/out/send/recipient/%2B491713920000` contains parameter _recipient_ with value `+491713920000`.
 
 Characters with a special meaning in the context of MQTT, base64 and percent-encoding include:
 
@@ -75,35 +81,56 @@ Characters with a special meaning in the context of MQTT, base64 and percent-enc
 |    `$`    |  `%24`   |
 |    `%`    |  `%25`   |
 |    `+`    |  `%2B`   |
+|    `,`    |  `%2C`   |
 |    `/`    |  `%2F`   |
 |    `=`    |  `%3D`   |
 
-#### Explicit typing
+### Explicit typing
+By default, a parameter's type is derived from its value.
+When the default type does not match the expected type,
+the value must be suffixed by a colon (`:`) and a type-id:
 
-The default type for all values is `string`, with one exception:
-when a value contains digits only, it is supposed to be of type `number`.
+    `<PARAMETER>/<PERCENT_ENCODED_VALUE>:<TYPE_ID>`
 
-Some parameters require a different type than the default.
-For these cases, the value may be suffixed by a colon (`:`) and a type-id:
+Some parameters allow multiple values;
+these may be represented by a comma-separated list of multiple values:
 
-  `<PARAMETER>/<PERCENT_ENCODED_VALUE>:<TYPE_ID>`
+    `<PARAMETER>/<PERCENT_ENCODED_VALUE1>,<PERCENT_ENCODED_VALUE2>:<TYPE_ID>`
 
-Some parameters require multiple values;
-in this case, multiple percent-encoded values may be given as comma-separated list.
+Type Rules:
 
-| Type             | typeid | Topic syntax    | JSON syntax
-| ---              | ---    | ---             | ---
-| String           | s      | `foo:s`         | `"foo"`
-| Number           | n      | `123:n`         | `123`
-| Boolean          | b      | `true:b`        | `true`
-| Array of String  | as     | `foo,bar:as`    | `["foo", "bar"]`
-| Array of Number  | an     | `123,456:an`    | `[123, 456]`
-| Array of Boolean | ab     | `true,false:ab` | `[true, false]`
+- The supported type-ids are `string`, `number`, `boolean`.
+  Each type-id may be suffixed with `[]` which means that the value is a list.
+- When a value contains digits only, its default type is `number`, otherwise `string`.
+- The type-id may be abbreviated.
+  For example, `string`, `str` and `s` are all valid type-ids for type `string`, 
+- In a comma-separated value list, the type-id suffix `[]` may be omitted.
+
+| Type      | type-id     | JSON syntax      | Topic syntax
+| ---       | ---         | ---              |  ---
+| String    | `string`    | `"foo"`          | `foo`, `foo:s`, `foo:string`
+| Number    | `number`    | `123`            | `123`, `123:n`, `123:number`
+| Boolean   | `boolean`   | `true`           | `true:b`, `true:boolean`
+| String[]  | `string[]`  | `["foo", "bar"]` | `foo,bar` `foo,bar:s`, `foo,bar:s[]`, `foo,bar:string[]`
+|           |             | `["foo"]`        | `foo:s[]`
+| Number[]  | `number[]`  | `[123, 456]`     | `123,456`, `123,456:n`, `123,456:n[]` `123,456:number[]`
+|           |             | `[123]`          | `123:n[]`
+| Boolean[] | `boolean[]` | `[true, false]`  | `true,false:b`, `true,false:b[]`
+|           |             | `[true]`         | `true:b[]` 
 
 Example:
-- Topic: `signal/out/send/recipient/%2B491713920000,%2B491713920001:as/quoteTimestamp/1577882096000:n`
-- Parameter _recipient_ contains an array of two phone numbers;
-  parameter _quoteTimestamp_ is explicitely typed as number (although the default would work here, too).
+- Topic: `signal/out/send/recipient/%2B491713920000,%2B491713920001/quoteTimestamp/1577882096000:n`
+- Parameter _recipient_ contains a `string` array of the two phone numbers `+491713920000` and `+491713920001`;
+  parameter _quoteTimestamp_ is explicitely typed as `number` (although the default would work here, too).
+
+## Commands
+
+### Lifecycle commands
+| Action | Command
+| ------ | -------
+| Start the container | `docker-compose up -d`
+| Stop the container  | `docker-compose down`
+| View the logs       | `docker-compose logs -f `
 
 ### MQTT commands
 The following values are used in the examples:

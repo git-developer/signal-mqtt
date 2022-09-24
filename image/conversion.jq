@@ -29,19 +29,17 @@ def url_decode:
 
 def cast:
   def cast_scalar(type_id):
-      if type_id == "n" then tonumber
-    elif type_id == "b" then test("true")
-    elif type_id == null and test("^[0-9]+$") then tonumber
+    if type_id == null or (type_id | test("^\\s*$")) then
+        if test("^[0-9]+$") then tonumber else . end
+    elif ("boolean" | startswith(type_id)) then test("true")
+    elif ("number" | startswith(type_id)) then tonumber
     else .
     end;
 
-  def cast_to(type_id):
-    ((type_id // "" | match("^(a?)(.)$").captures | map(.string)) // []) as $t
-    | if $t[0] == "a"
-      then split(",") | map(cast_scalar($t[1]))
-      else cast_scalar($t[1])
-      end;
-
-  split(":") as $v
-  | ($v[0] | url_decode)
-  | cast_to($v[1]);
+  split(":")
+  | .[1] as $type_id
+  | .[0] | split(",") | map(url_decode)
+  | if length > 1 or ($type_id and ($type_id | endswith("[]")))
+    then map(cast_scalar($type_id | rtrimstr("[]")))
+    else .[0] | cast_scalar($type_id)
+    end;
