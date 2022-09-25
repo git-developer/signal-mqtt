@@ -1,5 +1,5 @@
 #
-# This module is required to decode a percent-encoded string
+# This function to decode a percent-encoded string is required
 # until https://github.com/stedolan/jq/issues/2261 is resolved.
 #
 # Source: https://rosettacode.org/wiki/URL_decoding#jq
@@ -25,7 +25,8 @@ def url_decode:
          then [ $i + 3, .[1] + ([$in[$i+1:$i+3] | to_i(16)] | implode) ]
          else [ $i + 1, .[1] + $in[$i:$i+1] ]
          end)
-  | .[1];  # answer
+  | .[1]
+;
 
 def cast:
   def cast_scalar(type_id):
@@ -42,4 +43,26 @@ def cast:
   | if length > 1 or ($type_id and ($type_id | endswith("[]")))
     then map(cast_scalar($type_id | rtrimstr("[]")))
     else .[0] | cast_scalar($type_id)
-    end;
+    end
+;
+
+def to_topic(pattern):
+  [([paths(scalars) as $path | {"key": $path | join("."), "value": getpath($path)}]
+    | (map(.key | (
+        capture("^" + pattern + "$")
+        | with_entries(select(.value) | {key: .value, value: .key}))
+       ) | add
+      ) as $params
+    | map({key:$params[.key], value:.value} | select(.key) | (.key, (.value | @uri)))
+    | join("/")
+   ), .params.envelope.dataMessage.message
+  ] | @tsv
+;
+
+def to_jsonrpc(message):
+  split("/") + ["message", $message] | {
+    jsonrpc: "2.0",
+    (.[0]): .[1],
+    params: [. as $v | range(2; length; 2) | {($v[.]): $v[(.+1)] | cast}] | add
+  }
+;

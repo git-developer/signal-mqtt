@@ -1,0 +1,9 @@
+# Default topic parameters
+method             = method
+source_number      = params.envelope.sourceNumber
+timestamp          = params.envelope.dataMessage.timestamp
+group_id           = params.envelope.dataMessage.groupInfo.groupId
+quote_id           = params.envelope.dataMessage.quote.id
+reaction_emoji     = params.envelope.dataMessage.reaction.emoji
+reaction_timestamp = params.envelope.dataMessage.reaction.targetSentTimestamp
+typing_action      = params.envelope.typingMessage.action

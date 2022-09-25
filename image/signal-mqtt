@@ -6,10 +6,12 @@ set -eu
 
 signal_data="${XDG_DATA_HOME:-${HOME}/.local/share}/signal-cli/data"
 MQTT_TOPIC_PREFIX="${MQTT_TOPIC_PREFIX:-signal}"
+MQTT_TOPIC_PARAMETERS_FILE="${MQTT_TOPIC_PARAMETERS_FILE:-/etc/signal-mqtt/topic-parameters}"
 MQTT_PUBLISH_TOPIC="${MQTT_PUBLISH_TOPIC:-${MQTT_TOPIC_PREFIX}/in}"
 MQTT_SUBSCRIBE_TOPIC="${MQTT_SUBSCRIBE_TOPIC:-${MQTT_TOPIC_PREFIX}/out}"
 MQTT_LOG_TOPIC="${MQTT_LOG_TOPIC:-${MQTT_TOPIC_PREFIX}/log}"
-SIGNAL_ACCOUNT="${SIGNAL_ACCOUNT:-$(jq -r '.accounts[0].number' <"${signal_data}/accounts.json")}"
+SIGNAL_ACCOUNT="${SIGNAL_ACCOUNT:-$(jq --raw-output '.accounts[0].number' <"${signal_data}/accounts.json")}"
+
 
 #######################################
 # Publish a message via MQTT.
@@ -31,37 +33,6 @@ _publish() {
 }
 
 #######################################
-# Build a JSON-RPC object.
-# Arguments:
-#   1: Topic in the form `method[/key/value]...`
-#   2: Message
-# Outputs:
-#   JSON-RPC object
-#######################################
-to_jsonrpc() {
-  local topic="${1}" message="${2}"
-  printf '%s\n' "${topic}" | jq --raw-input --compact-output --arg message "${message}" '
-    include "conversion";
-    split("/") + ["message", $message] | {
-      jsonrpc: "2.0",
-      method: .[0],
-      params: [. as $v | range(1; length; 2) | {($v[.]): $v[(.+1)] | cast}] | add
-    }
-  '
-}
-
-#######################################
-# Encode a text to percent-encoding.
-# Arguments:
-#   1: Text
-# Outputs:
-#   Text in percent-encoding
-#######################################
-percent_encode() {
-  printf '%s' "${1}" | jq -sRr @uri
-}
-
-#######################################
 # Write one or more arguments to the log
 # Arguments:
 #  Log messages
@@ -73,12 +44,65 @@ log() {
   fi
 }
 
-send() {
+#######################################
+# Write a JSON RPC message to stdout.
+# Globals:
+#   LOG_JSONRPC
+# Inputs:
+#  A JSON RPC object
+# Outputs:
+#  The JSON RPC object
+#######################################
+write_jsonrpc() {
   if [ "${LOG_JSONRPC:-false}" = 'true' ]; then
     { log "$(tee /dev/fd/3)"; } 3>&1
   else
     cat -
   fi
+}
+
+#######################################
+# Build a JSON RPC object.
+# Arguments:
+#   1: Topic in the form `method[/key/value]...`
+#   2: Message
+# Outputs:
+#   JSON RPC object
+#######################################
+to_jsonrpc() {
+  local topic="${1}" message="${2}"
+  printf '%s\n' "${topic}" | jq --raw-input --compact-output --arg message "${message}" 'to_jsonrpc($message)'
+}
+
+#######################################
+# Parse topic parameters.
+#
+# The source file is expected to contain lines of format
+#   `topic_key=json_path`
+# with
+#  `topic_key`: a string that identifies a parameter in MQTT topics
+#  `json_path`: a path in dot-notation to a value in a JSON RPC message
+# Whitespaces around key and value and lines starting with `#` are ignored.
+#
+# Globals:
+#   MQTT_TOPIC_PARAMETERS_FILE
+#     Source file for parameters.
+# Outputs:
+#   A regex pattern containing named capturing groups for parameters
+#######################################
+read_topic_pattern() {
+  if [ ! -r "${MQTT_TOPIC_PARAMETERS_FILE}" ]; then
+    log "Error: Cannot read topic parameters from '${MQTT_TOPIC_PARAMETERS_FILE}'"
+    return 1
+  fi
+  while IFS='=' read key value; do
+    key="$(printf '%s' "${key}" | xargs)"
+    value="$(printf '%s' "${value}" | xargs)"
+    case "${key}" in
+      '#'*) ;;
+      *) printf '(?<%s>%s)|' "${key}" "$(printf %s "${value}" | sed s/\\./\\\\./g)" ;;
+    esac
+  done <"${MQTT_TOPIC_PARAMETERS_FILE}" | sed -nE 's/^(.*[^|]+)\|+$/\1/p'
 }
 
 #######################################
@@ -88,58 +112,27 @@ send() {
 #  A JSON RPC object
 #######################################
 mqtt_publish() {
+  local pattern
+  pattern="${MQTT_TOPIC_PARAMETERS_PATTERN:-$(read_topic_pattern "${MQTT_TOPIC_PARAMETERS_FILE}")}"
   while read -r json_response; do
     if [ "${LOG_JSONRPC:-false}" = 'true' ]; then
       log "${json_response}"
     fi
-
     if [ "${MQTT_PUBLISH_JSON_RESPONSE:-false}" = 'true' ]; then
       _publish "${MQTT_PUBLISH_TOPIC}" "${json_response}"
     fi
-
-    if [ "${MQTT_PUBLISH_PER_SOURCE:-true}" = 'true' ]; then
-      variables='source_number timestamp group_id quote_timestamp reaction_emoji reaction_timestamp message'
+    if [ "${MQTT_PUBLISH_TO_PARAMETER_TOPIC:-true}" = 'true' ]; then
       printf '%s' "${json_response}" \
-      | jq -r '.params.envelope
-               | [.sourceNumber, (.dataMessage | .timestamp, .groupInfo.groupId, .quote.id, (.reaction | .emoji, .targetSentTimestamp), .message)]
-               | map_values(. // "\u0000")
-               | @tsv' \
-      | while IFS=$(printf '\t') read -r $(printf "${variables}"); do
-        for var in $(printf "${variables}"); do eval "${var}=\$(printf \"\${$var}\")"; done
-        if [ "${reaction_emoji}" ]; then
-          message="${reaction_emoji}"
-        fi
-
-        if [ "${message}" ]; then
-          topic="${MQTT_PUBLISH_TOPIC}/$(percent_encode "${source_number}")"
-
-          if [ "${MQTT_PUBLISH_PER_SOURCE_AS_JSON:-false}" = 'true' ]; then
-            _publish "${topic}" "${json_response}"
-          fi
-
-          if [ "${MQTT_PUBLISH_PER_SOURCE_AS_TEXT:-true}" = 'true' ]; then
-            if [ "${MQTT_PUBLISH_PER_SOURCE_TIMESTAMP:-true}" = 'true' ]; then
-              topic="${topic}/timestamp/${timestamp}"
-            fi
-            if [ "${group_id}" ]; then
-              topic="${topic}/group/$(percent_encode "${group_id}")"
-            fi
-            if [ "${quote_timestamp}" ]; then
-              topic="${topic}/quote/${quote_timestamp}"
-            fi
-            if [ "${reaction_timestamp}" ]; then
-              topic="${topic}/reaction/${reaction_timestamp}"
-            fi
-            _publish "${topic}" "${message}"
-          fi
-        fi
+      | jq --raw-output --arg pattern "${pattern}" 'to_topic($pattern)' \
+      | while IFS=$(printf '\t') read -r topic message; do
+        _publish "${MQTT_PUBLISH_TOPIC}/${topic}" "${message}"
       done
     fi
   done
 }
 
 #######################################
-# Subscribe to a MQTT topic and convert each incoming message
+# Subscribe to an MQTT topic and convert each incoming message
 # to a JSON RPC object.
 # Outputs:
 #   One JSON RPC object per incoming message
@@ -152,7 +145,7 @@ mqtt_subscribe() {
       "${MQTT_SUBSCRIBE_TOPIC}")   printf '%s\n' "${payload}" ;;
       "${MQTT_SUBSCRIBE_TOPIC}"/*) to_jsonrpc "${topic##${MQTT_SUBSCRIBE_TOPIC}/}" "${payload}" ;;
       *) log "Ignoring message on unsupported topic ${topic}" ;;
-    esac | send
+    esac | write_jsonrpc
   done
 }
 
