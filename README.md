@@ -59,8 +59,15 @@ There are two different ways to use this service:
 - Send and receive complete JSON RPC messages including content and metadata.
 - Send and receive simple text messages whereas metadata is part of the MQTT topic.
 
-### JSON messages
-Incoming and outgoing JSON messages are published to a topic per direction.
+### Lifecycle commands
+| Action | Command
+| ------ | -------
+| Start the container | `docker-compose up -d`
+| Stop the container  | `docker-compose down`
+| View the logs       | `docker-compose logs -f `
+
+### Send and receive JSON RPC messages
+Incoming and outgoing JSON RPC messages are published to a topic per direction.
 
 | Direction | Default topic  | Environment variable
 | ---       | ---            | ---
@@ -68,7 +75,7 @@ Incoming and outgoing JSON messages are published to a topic per direction.
 | Receive   | `signal/in`    | `MQTT_PUBLISH_TOPIC`
 
 #### Send
-To send a JSON RPC command, publish the JSON message to the send topic.
+To send a JSON RPC command, publish the JSON message to the send topic (default: `signal/out`).
 
 Example:
 ```sh
@@ -77,7 +84,7 @@ $ mosquitto_pub -h broker -t signal/out -m '{"jsonrpc":"2.0","method":"send","pa
 The text _Outgoing message_ is sent to the phone.
 
 #### Receive
-To receive JSON RPC messages, subscribe to the receive topic.
+To receive JSON RPC messages, subscribe to the receive topic (default: `signal/in`).
 
 Reception of JSON RPC messages is disabled by default.
 To enable it, set `MQTT_PUBLISH_JSON_RESPONSE` to `true`.
@@ -103,7 +110,7 @@ Example:
   signal/in {"jsonrpc":"2.0","method":"receive","params":{"envelope":{"source":"+491713920000","sourceNumber":"+491713920000","sourceUuid":"3689ed97-01b2-4fa5-8ed8-18174ad5cf15","sourceName":"Sally Sender","sourceDevice":1,"timestamp":1577882099000,"receiptMessage":{"when":1577882099000,"isDelivery":false,"isRead":true,"isViewed":false,"timestamps":[1577882098000]}},"account":"+493023125000","subscription":0}}
   ```
 
-### Parameter topics
+### Send and receive messages via parameter topics
 Parameter topics have been designed for use cases
 where handling of complete JSON RPC messages is not suitable.
 
@@ -143,8 +150,20 @@ Characters with a special meaning in the context of MQTT, base64 and percent-enc
 
 
 #### Send
-To send a JSON RPC command, publish the message text
-to a topic that is composed of the method and all parameters.
+To send a JSON RPC command, publish the message text to a topic that is composed of
+* the send topic (default: `signal/out`) and
+* the method (e.g. `method/send`) and
+* all parameters of the command.
+
+The signal-cli documentation contains a
+[list of commands](https://github.com/AsamK/signal-cli/blob/master/man/signal-cli.1.adoc#commands)
+and parameters. Syntax rules:
+* Parameter names are provided in camelCase format instead of the hyphen-format.
+* Multi-valued parameters can be provided as comma-separated list.
+
+See the
+[signal-cli wiki](https://github.com/AsamK/signal-cli/wiki/JSON-RPC-service#commands)
+for detailed explanations of commands and parameters.
 
 ##### Examples
 The following values are used in the examples:
@@ -211,7 +230,8 @@ Example:
   parameter _quoteTimestamp_ is explicitely typed as `number` (although the default would work here, too).
 
 #### Receive
-To receive messages on parameter topics, subscribe to the receive topic.
+To receive messages on parameter topics,
+subscribe to all children of the receive topic (default: `signal/in`).
 
 ##### Examples
 The following values are used in the examples:
@@ -249,14 +269,74 @@ $ mosquitto_sub -v -h broker -t signal/#
 signal/in/method/receive/source_number/%2B491713920000/timestamp/1577882100000/reaction_emoji/%F0%9F%91%8D%F0%9F%8F%BB/reaction_timestamp/1577882096000 (null)
 ```
 
-### Lifecycle commands
-| Action | Command
-| ------ | -------
-| Start the container | `docker-compose up -d`
-| Stop the container  | `docker-compose down`
-| View the logs       | `docker-compose logs -f `
+##### Customization of topic parameters
+A JSON RPC message usually contains a lot of metadata parameters along with the main content.
+Most metadata parameters are not required for an average user,
+thus the parameters are filtered before building an MQTT topic.
 
-### Run a signal-cli command from the command line
+The parameters that are used for topic building
+are read from `/etc/signal-mqtt/topic-parameters` (within the container) once at application start.
+The file contains a key/value pair per parameter.
+The key is used as parameter name in the topic. The value is a path expression in
+[dot notation](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Operators/Property_Accessors#dot_notation),
+representing the position of the value in JSON RPC messages. Example:
+```
+# Restrict the topic to method, source number and group id.
+method        = method
+source_number = params.envelope.sourceNumber
+group_id      = params.envelope.dataMessage.groupInfo.groupId
+```
+
+The default file can be found under `image/topic-parameters`.
+
+There are several options to customize the filter,
+overriding the default file being the simplest one.
+
+###### Override the default filter file
+Write a custom file and mount it to `/etc/signal-mqtt/topic-parameters` in the container.
+Example:
+```yaml
+services:
+  signal-mqtt:
+    [...]
+    volumes:
+      - "./data:/home/.local/share/signal-cli"
+      - "./custom-topic-parameters:/etc/signal-mqtt/topic-parameters"
+```
+
+###### Use a custom filter file
+Write a custom file, mount it into the container and
+set the environment variable `MQTT_TOPIC_PARAMETERS_FILE`.
+In a containerized environment,
+this option offers no advantages over replacing the default file.
+
+```yaml
+services:
+  signal-mqtt:
+    [...]
+    environment:
+      MQTT_TOPIC_PARAMETERS_FILE: "/home/custom-topic-parameters"
+    volumes:
+      - "./data:/home/.local/share/signal-cli"
+      - "./custom-topic-parameters:/home/custom-topic-parameters"
+```
+
+###### Use an environment variable
+The filter may be configured without file
+by setting the environment variable `MQTT_TOPIC_PARAMETERS_PATTERN`
+The variable must contain a regular expression of named capturing groups.
+The group name corresponds to the filter key, the content of the group to the filter value.
+
+Example:
+```
+services:
+  signal-mqtt:
+    [...]
+    environment:
+      MQTT_TOPIC_PARAMETERS_PATTERN: "(?<method>method)|(?<source_number>params.envelope.sourceNumber)|(?<group_id>params.envelope.dataMessage.groupInfo.groupId)"
+```
+
+### Run signal-cli commands from the command line
 * Syntax: 
   ```sh
   $ docker-compose run signal-mqtt signal-cli <command>
@@ -275,16 +355,18 @@ The configuration is based on environment variables.
 |Variable|Description|Allowed values|Default|Example
 |--------|-----------|-----|-------|-------
 |`MQTT_TOPIC_PREFIX`|Prefix for MQTT topics|[Topic names](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106)|`signal`|`chats`
+|`MQTT_TOPIC_PARAMETERS_FILE`|Custom filter file for topic parameters|File paths|_none_|`/home/custom-topic-parameters`
+|`MQTT_TOPIC_PARAMETERS_PATTERN`|Custom pattern for topic parameters|A regular expression containing named capturing groups|_none_|`(?<method>method)|(?<source_number>params.envelope.sourceNumber)|(?<group_id>params.envelope.dataMessage.groupInfo.groupId)`
 |`MQTT_PUBLISH_OPTIONS`|MQTT publish options|All options [supported by `mosquitto_pub`](https://mosquitto.org/man/mosquitto_pub-1.html) except `-t` and `-m`|_none_|`-h broker -id signal-publisher`
 |`MQTT_PUBLISH_TOPIC`|MQTT topic for publishing messages received from Signal|[Topic names](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106)|`${MQTT_TOPIC_PREFIX}/in`|`chats/from`
-|`MQTT_PUBLISH_JSON_RESPONSE`|Publish json-rpc responses from signal-cli?|`true` / `false`|`false`|`true`
+|`MQTT_PUBLISH_JSON_RESPONSE`|Publish JSON RPC responses from signal-cli?|`true` / `false`|`false`|`true`
 |`MQTT_PUBLISH_TO_PARAMETER_TOPIC`|Publish received messages to a topic created from the message parameters?|`true` / `false`|`true`|`false`
 |`MQTT_SUBSCRIBE_OPTIONS`|MQTT subscribe options|All options [supported by `mosquitto_sub`](https://mosquitto.org/man/mosquitto_sub-1.html) except `-t` and formatting-related options like  `-F` & `-N`|_none_|`-h broker -i signal-subscriber`
 |`MQTT_SUBSCRIBE_TOPIC`|MQTT topic to listen for messages that are sent to a Signal receiver|[Topic names](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106)|`${MQTT_TOPIC_PREFIX}/out`|`chats/to`
 |`MQTT_LOG`|Enable logging via MQTT?|`true` / `false`|`false`|`true`
 |`MQTT_LOG_TOPIC`|MQTT topic to publish the log to|`${MQTT_TOPIC_PREFIX}/log`|`chats/logs`
 |`SIGNAL_ACCOUNT`|Phone number of the signal account|International phone number format with leading `+`|Account from signal-cli configuration|`+493023125000`
-|`LOG_JSONRPC`|Enable logging of JSON RPC messages?|`true` / `false`|`false`|`true`
+|`LOG_JSON_MESSAGES`|Enable logging of JSON RPC messages?|`true` / `false`|`false`|`true`
 |`DEBUG`|Enable debug logging?|`true` / `false`|`false`|`true`
 |`TRACE`|Enable trace logging?|`true` / `false`|`false`|`true`
 
