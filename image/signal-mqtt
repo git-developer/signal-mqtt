@@ -47,14 +47,14 @@ log() {
 #######################################
 # Write a JSON RPC message to stdout.
 # Globals:
-#   LOG_JSONRPC
+#   LOG_JSON_MESSAGES
 # Inputs:
 #  A JSON RPC object
 # Outputs:
 #  The JSON RPC object
 #######################################
 write_jsonrpc() {
-  if [ "${LOG_JSONRPC:-false}" = 'true' ]; then
+  if [ "${LOG_JSON_MESSAGES:-false}" = 'true' ]; then
     { log "$(tee /dev/fd/3)"; } 3>&1
   else
     cat -
@@ -115,7 +115,7 @@ mqtt_publish() {
   local pattern
   pattern="${MQTT_TOPIC_PARAMETERS_PATTERN:-$(read_topic_pattern "${MQTT_TOPIC_PARAMETERS_FILE}")}"
   while read -r json_response; do
-    if [ "${LOG_JSONRPC:-false}" = 'true' ]; then
+    if [ "${LOG_JSON_MESSAGES:-false}" = 'true' ]; then
       log "${json_response}"
     fi
     if [ "${MQTT_PUBLISH_JSON_RESPONSE:-false}" = 'true' ]; then
@@ -154,7 +154,7 @@ mqtt_subscribe() {
 # Start the application.
 #######################################
 main() {
-  log "Starting ${0}"
+  log "$(basename "${0}") was started."
   mqtt_subscribe | signal-cli --account "${SIGNAL_ACCOUNT}" ${DEBUG:+-v}${TRACE:+-v -v} jsonRpc | mqtt_publish
 }
 
