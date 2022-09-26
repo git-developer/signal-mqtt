@@ -1,11 +1,10 @@
 # signal-mqtt
-signal-mqtt - An adapter between MQTT and the
-[JSON RPC](https://github.com/AsamK/signal-cli/wiki/JSON-RPC-service)
-API of signal-cli.
+signal-mqtt - An adapter between MQTT and signal-cli
+[JSON RPC](https://github.com/AsamK/signal-cli/wiki/JSON-RPC-service).
 
-This project allows to send arbitrary command requests to Signal messengers and receive responses.
+This project allows to send and receive messages between MQTT clients and Signal messengers.
 This includes, but is not limited to, sending and receiving of text messages,
-quotations and emojis to Signal accounts and groups.
+quotations and emojis to/from Signal accounts and groups.
 The signal-cli documentation contains a list of all
 [supported commands](https://github.com/AsamK/signal-cli/blob/master/man/signal-cli.1.adoc#commands).
 
@@ -57,7 +56,7 @@ The signal-cli documentation contains a list of all
 ## Usage
 There are two different ways to use this service:
 - Send and receive complete JSON RPC messages including content and metadata.
-- Send and receive simple text messages whereas metadata is part of the MQTT topic.
+- Send and receive simple text messages and handle metadata as part of the MQTT topic (aka "parameter topics").
 
 ### Lifecycle commands
 | Action | Command
@@ -75,7 +74,7 @@ Incoming and outgoing JSON RPC messages are published to a topic per direction.
 | Receive   | `signal/in`    | `MQTT_PUBLISH_TOPIC`
 
 #### Send
-To send a JSON RPC command, publish the JSON message to the send topic (default: `signal/out`).
+To send a JSON RPC command, publish a JSON message to the send topic (default: `signal/out`).
 
 Example:
 ```sh
@@ -113,7 +112,6 @@ Example:
 ### Send and receive messages via parameter topics
 Parameter topics have been designed for use cases
 where handling of complete JSON RPC messages is not suitable.
-
 They allow to send and receive commands in form of simple text messages,
 whereas all required metadata is managed in the MQTT topic.
 
@@ -127,10 +125,10 @@ It is composed of:
   defaulting to `signal/out` for outgoing and `signal/in` for incoming messages
 - The JSON RPC method, e.g. `send` or `receive`
 - An optional list of parameters. Each parameter is composed of a name and a value.
-  The parameters may be in any order.
+  Parameters may be in any order.
 
 #### Value encoding
-Some parameter values, e.g. an international account number or a base64 encoded group id,
+Some parameter values, e.g. an international account number or a group id,
 include special characters which are forbidden as part of an MQTT topic.
 Thus, all values in parameter topics are percent-encoded (aka URL-encoded).
 
@@ -224,10 +222,12 @@ Type Rules:
 | Boolean[] | `boolean[]` | `[true, false]`  | `true,false:b` or `true,false:b[]`
 |           |             | `[true]`         | `true:b[]` 
 
-Example:
-- Topic: `signal/out/method/send/recipient/%2B491713920000,%2B491713920001/quoteTimestamp/1577882096000:n`
-- Parameter _recipient_ contains a `string` array of the two phone numbers `+491713920000` and `+491713920001`;
-  parameter _quoteTimestamp_ is explicitely typed as `number` (although the default would work here, too).
+Example: topic
+`signal/out/method/send/recipient/%2B491713920000,%2B491713920001/quoteTimestamp/1577882096000:n`
+contains a parameter _recipient_ holding a `string` array
+of the two phone numbers `+491713920000` & `+491713920001`,
+and parameter _quoteTimestamp_ is explicitely typed as `number`
+(although the default would work here, too).
 
 #### Receive
 To receive messages on parameter topics,
@@ -323,12 +323,12 @@ services:
 
 ###### Use an environment variable
 The filter may be configured without file
-by setting the environment variable `MQTT_TOPIC_PARAMETERS_PATTERN`
+by setting the environment variable `MQTT_TOPIC_PARAMETERS_PATTERN`.
 The variable must contain a regular expression of named capturing groups.
 The group name corresponds to the filter key, the content of the group to the filter value.
 
 Example:
-```
+```yaml
 services:
   signal-mqtt:
     [...]
@@ -337,38 +337,39 @@ services:
 ```
 
 ### Run signal-cli commands from the command line
-* Syntax: 
-  ```sh
-  $ docker-compose run signal-mqtt signal-cli <command>
-  ```
-* Example:
-  ```sh
-  $ docker-compose run --rm -ti signal-mqtt signal-cli listContacts
-  Number: +491713920000 Name:  Profile name: Sally Sender Blocked: false Message expiration: disabled
-  Number: +491713920001 Name:  Profile name: Rudy Receiver Blocked: false Message expiration: disabled
-  ```
-* Note: Most signal-cli commands require that no container is running.
+Syntax: 
+```sh
+$ docker-compose run signal-mqtt signal-cli <command>
+```
+Most signal-cli commands require that no container is running.
+
+Example:
+```sh
+$ docker-compose run --rm -ti signal-mqtt signal-cli listContacts
+Number: +491713920000 Name:  Profile name: Sally Sender Blocked: false Message expiration: disabled
+Number: +491713920001 Name:  Profile name: Rudy Receiver Blocked: false Message expiration: disabled
+```
 
 ## Configuration
 The configuration is based on environment variables.
 
 |Variable|Description|Allowed values|Default|Example
 |--------|-----------|-----|-------|-------
-|`MQTT_TOPIC_PREFIX`|Prefix for MQTT topics|[Topic names](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106)|`signal`|`chats`
-|`MQTT_TOPIC_PARAMETERS_FILE`|Custom filter file for topic parameters|File paths|_none_|`/home/custom-topic-parameters`
-|`MQTT_TOPIC_PARAMETERS_PATTERN`|Custom pattern for topic parameters|A regular expression containing named capturing groups|_none_|`(?<method>method)|(?<source_number>params.envelope.sourceNumber)|(?<group_id>params.envelope.dataMessage.groupInfo.groupId)`
 |`MQTT_PUBLISH_OPTIONS`|MQTT publish options|All options [supported by `mosquitto_pub`](https://mosquitto.org/man/mosquitto_pub-1.html) except `-t` and `-m`|_none_|`-h broker -id signal-publisher`
 |`MQTT_PUBLISH_TOPIC`|MQTT topic for publishing messages received from Signal|[Topic names](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106)|`${MQTT_TOPIC_PREFIX}/in`|`chats/from`
 |`MQTT_PUBLISH_JSON_RESPONSE`|Publish JSON RPC responses from signal-cli?|`true` / `false`|`false`|`true`
-|`MQTT_PUBLISH_TO_PARAMETER_TOPIC`|Publish received messages to a topic created from the message parameters?|`true` / `false`|`true`|`false`
+|`MQTT_PUBLISH_TO_PARAMETER_TOPIC`|Publish received messages to a parameter topic?|`true` / `false`|`true`|`false`
 |`MQTT_SUBSCRIBE_OPTIONS`|MQTT subscribe options|All options [supported by `mosquitto_sub`](https://mosquitto.org/man/mosquitto_sub-1.html) except `-t` and formatting-related options like  `-F` & `-N`|_none_|`-h broker -i signal-subscriber`
 |`MQTT_SUBSCRIBE_TOPIC`|MQTT topic to listen for messages that are sent to a Signal receiver|[Topic names](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106)|`${MQTT_TOPIC_PREFIX}/out`|`chats/to`
+|`MQTT_TOPIC_PREFIX`|Prefix for MQTT topics|[Topic names](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106)|`signal`|`chats`
+|`MQTT_TOPIC_PARAMETERS_FILE`|Custom filter file for topic parameters|File paths|_none_|`/home/custom-topic-parameters`
+|`MQTT_TOPIC_PARAMETERS_PATTERN`|Custom pattern for topic parameters|A regular expression containing named capturing groups|_none_|`(?<method>method)\|(?<source_number>params.envelope.sourceNumber)\|(?<group_id>params.envelope.dataMessage.groupInfo.groupId)`
 |`MQTT_LOG`|Enable logging via MQTT?|`true` / `false`|`false`|`true`
 |`MQTT_LOG_TOPIC`|MQTT topic to publish the log to|`${MQTT_TOPIC_PREFIX}/log`|`chats/logs`
-|`SIGNAL_ACCOUNT`|Phone number of the signal account|International phone number format with leading `+`|Account from signal-cli configuration|`+493023125000`
 |`LOG_JSON_MESSAGES`|Enable logging of JSON RPC messages?|`true` / `false`|`false`|`true`
 |`DEBUG`|Enable debug logging?|`true` / `false`|`false`|`true`
 |`TRACE`|Enable trace logging?|`true` / `false`|`false`|`true`
+|`SIGNAL_ACCOUNT`|Phone number of the signal account|International phone number format with leading `+`|Account from signal-cli configuration|`+493023125000`
 
 ## References
 * This project is an integration of
