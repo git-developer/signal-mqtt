@@ -368,7 +368,7 @@ The configuration is based on environment variables.
 |`MQTT_LOG_TOPIC`|MQTT topic to publish the log to|`${MQTT_TOPIC_PREFIX}/log`|`chats/logs`
 |`LOG_JSONRPC`|Enable logging of JSON RPC objects?|`true` / `false`|`false`|`true`
 |`SIGNAL_ACCOUNT`|Phone number of the signal account|International phone number format with leading `+`|Account from signal-cli configuration|`+493023125000`
-|`SIGNAL_CLI_OPTIONS`|signal-cli options|All options [supported by `signal-cli`](https://github.com/AsamK/signal-cli/blob/master/man/signal-cli.1.adoc#options)|_none_|`--trust-new-identities never -v`
+|`SIGNAL_CLI_OPTIONS`|signal-cli options|All options [supported by `signal-cli`](https://github.com/AsamK/signal-cli/blob/master/man/signal-cli.1.adoc#options) except `-a` and `-o`|_none_|`--trust-new-identities never -v`
 
 ## References
 * This project is an integration of
