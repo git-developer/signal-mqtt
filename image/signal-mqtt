@@ -21,57 +21,29 @@ SIGNAL_ACCOUNT="${SIGNAL_ACCOUNT:-$(jq --raw-output '.accounts[0].number' <"${si
 #   1: MQTT topic
 #   2: Message
 #######################################
-_publish() {
+mqtt_publish() {
   local topic="${1}" message="${2}"
 
-    # xargs has a default limit of ~30000 bytes for the command line, which may be too small.
-    # Thus, the limit is set slightly above the actual size.
-    # `LC_ALL` is set to get the string length in bytes, not characters.
-    xargs_limit=$(LC_ALL=C expr 50 + "${#topic}" + "${#message}" + "${#MQTT_PUBLISH_OPTIONS}")
+  # xargs has a default limit of ~30000 bytes for the command line,
+  # which may be too small.
+  # Thus, the limit is set slightly above the actual size.
+  # `LC_ALL` is set to get the string length in bytes, not characters.
+  xargs_limit=$(LC_ALL=C expr 50 + "${#topic}" + "${#message}" + "${#MQTT_PUBLISH_OPTIONS}")
 
-    printf '%s' "${MQTT_PUBLISH_OPTIONS}" | xargs -s "${xargs_limit}" mosquitto_pub -t "${topic}" -m "${message}"
+  printf %s "${MQTT_PUBLISH_OPTIONS}" \
+  | xargs -s "${xargs_limit}" mosquitto_pub -t "${topic}" -m "${message}"
 }
 
 #######################################
-# Write one or more arguments to the log
+# Write one or more arguments to the log.
 # Arguments:
 #  Log messages
 #######################################
 log() {
   printf '%s\n' >&2 "${@}"
   if [ "${MQTT_LOG:-false}" = 'true' ]; then
-    _publish "${MQTT_LOG_TOPIC}" "${*}"
+    mqtt_publish "${MQTT_LOG_TOPIC}" "${*}"
   fi
-}
-
-#######################################
-# Write a JSON RPC message to stdout.
-# Globals:
-#   LOG_JSON_MESSAGES
-# Inputs:
-#  A JSON RPC object
-# Outputs:
-#  The JSON RPC object
-#######################################
-write_jsonrpc() {
-  if [ "${LOG_JSON_MESSAGES:-false}" = 'true' ]; then
-    { log "$(tee /dev/fd/3)"; } 3>&1
-  else
-    cat -
-  fi
-}
-
-#######################################
-# Build a JSON RPC object.
-# Arguments:
-#   1: Topic in the form `method[/key/value]...`
-#   2: Message
-# Outputs:
-#   JSON RPC object
-#######################################
-to_jsonrpc() {
-  local topic="${1}" message="${2}"
-  printf '%s\n' "${topic}" | jq --raw-input --compact-output --arg message "${message}" 'to_jsonrpc($message)'
 }
 
 #######################################
@@ -81,7 +53,7 @@ to_jsonrpc() {
 #   `topic_key=json_path`
 # with
 #  `topic_key`: a string that identifies a parameter in MQTT topics
-#  `json_path`: a path in dot-notation to a value in a JSON RPC message
+#  `json_path`: a path in dot-notation to a value in a JSON RPC object
 # Whitespaces around key and value and lines starting with `#` are ignored.
 #
 # Globals:
@@ -96,8 +68,8 @@ read_topic_pattern() {
     return 1
   fi
   while IFS='=' read key value; do
-    key="$(printf '%s' "${key}" | xargs)"
-    value="$(printf '%s' "${value}" | xargs)"
+    key="$(printf %s "${key}" | xargs)"
+    value="$(printf %s "${value}" | xargs)"
     case "${key}" in
       '#'*) ;;
       *) printf '(?<%s>%s)|' "${key}" "$(printf %s "${value}" | sed s/\\./\\\\./g)" ;;
@@ -111,51 +83,73 @@ read_topic_pattern() {
 # Inputs:
 #  A JSON RPC object
 #######################################
-mqtt_publish() {
+publish_jsonrpc() {
   local pattern
   pattern="${MQTT_TOPIC_PARAMETERS_PATTERN:-$(read_topic_pattern "${MQTT_TOPIC_PARAMETERS_FILE}")}"
-  while read -r json_response; do
-    if [ "${LOG_JSON_MESSAGES:-false}" = 'true' ]; then
-      log "${json_response}"
+  while read -r jsonrpc_object; do
+    if [ "${LOG_JSONRPC:-false}" = 'true' ]; then
+      log "${jsonrpc_object}"
     fi
-    if [ "${MQTT_PUBLISH_JSON_RESPONSE:-false}" = 'true' ]; then
-      _publish "${MQTT_PUBLISH_TOPIC}" "${json_response}"
+    if [ "${MQTT_PUBLISH_JSONRPC:-false}" = 'true' ]; then
+      mqtt_publish "${MQTT_PUBLISH_TOPIC}" "${jsonrpc_object}"
     fi
     if [ "${MQTT_PUBLISH_TO_PARAMETER_TOPIC:-true}" = 'true' ]; then
-      printf '%s' "${json_response}" \
+      printf %s "${jsonrpc_object}" \
       | jq --raw-output --arg pattern "${pattern}" 'to_topic($pattern)' \
       | while IFS=$(printf '\t') read -r topic message; do
-        _publish "${MQTT_PUBLISH_TOPIC}/${topic}" "${message}"
+        mqtt_publish "${MQTT_PUBLISH_TOPIC}/${topic}" "${message}"
       done
     fi
   done
 }
 
 #######################################
-# Subscribe to an MQTT topic and convert each incoming message
-# to a JSON RPC object.
+# Subscribe to an MQTT topic and convert
+# each incoming message to a JSON RPC object.
 # Outputs:
 #   One JSON RPC object per incoming message
 #######################################
-mqtt_subscribe() {
-  printf '%s' "${MQTT_SUBSCRIBE_OPTIONS}" \
+subscribe_for_jsonrpc() {
+  printf %s "${MQTT_SUBSCRIBE_OPTIONS}" \
   | xargs mosquitto_sub -t "${MQTT_SUBSCRIBE_TOPIC}/#" -v \
-  | while read -r topic payload; do
+  | while read -r topic message; do
     case "${topic}" in
-      "${MQTT_SUBSCRIBE_TOPIC}")   printf '%s\n' "${payload}" ;;
-      "${MQTT_SUBSCRIBE_TOPIC}"/*) to_jsonrpc "${topic##${MQTT_SUBSCRIBE_TOPIC}/}" "${payload}" ;;
+      "${MQTT_SUBSCRIBE_TOPIC}")
+        printf '%s\n' "${message}"
+        ;;
+      "${MQTT_SUBSCRIBE_TOPIC}"/*)
+        printf '%s\n' "${topic##${MQTT_SUBSCRIBE_TOPIC}/}" \
+        | jq --raw-input --compact-output --arg message "${message}" 'to_jsonrpc($message)'
+        ;;
       *) log "Ignoring message on unsupported topic ${topic}" ;;
-    esac | write_jsonrpc
+    esac | if [ "${LOG_JSONRPC:-false}" = 'true' ]; then
+      { log "$(tee /dev/fd/3)"; } 3>&1
+    else
+      cat -
+    fi
   done
 }
 
+#######################################
+# Start signal-cli.
+# Globals:
+#   SIGNAL_CLI_OPTIONS
+#   SIGNAL_ACCOUNT
+# Outputs:
+#   JSON RPC messages
+#######################################
+signal_cli() {
+  3<&0 xargs sh -c '<&3 exec signal-cli "${@}"' inline-script <<EOF
+    ${SIGNAL_CLI_OPTIONS-} --account "${SIGNAL_ACCOUNT}" jsonRpc
+EOF
+}
 
 #######################################
 # Start the application.
 #######################################
 main() {
-  log "$(basename "${0}") was started."
-  mqtt_subscribe | signal-cli --account "${SIGNAL_ACCOUNT}" ${DEBUG:+-v}${TRACE:+-v -v} jsonRpc | mqtt_publish
+  log "$(basename "${0}") - Start"
+  subscribe_for_jsonrpc | signal_cli | publish_jsonrpc
 }
 
 main "${@}"

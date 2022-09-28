@@ -55,7 +55,7 @@ The signal-cli documentation contains a list of all
 
 ## Usage
 There are two different ways to use this service:
-- Send and receive complete JSON RPC messages including content and metadata.
+- Send and receive complete JSON RPC objects including content and metadata.
 - Send and receive simple text messages and handle metadata as part of the MQTT topic (aka "parameter topics").
 
 ### Lifecycle commands
@@ -65,8 +65,8 @@ There are two different ways to use this service:
 | Stop the container  | `docker-compose down`
 | View the logs       | `docker-compose logs -f `
 
-### Send and receive JSON RPC messages
-Incoming and outgoing JSON RPC messages are published to a topic per direction.
+### Send and receive JSON RPC objects
+Incoming and outgoing JSON RPC objects are published to a topic per direction.
 
 | Direction | Default topic  | Environment variable
 | ---       | ---            | ---
@@ -74,7 +74,7 @@ Incoming and outgoing JSON RPC messages are published to a topic per direction.
 | Receive   | `signal/in`    | `MQTT_PUBLISH_TOPIC`
 
 #### Send
-To send a JSON RPC command, publish a JSON message to the send topic (default: `signal/out`).
+To send a command, publish a JSON RPC object to the send topic (default: `signal/out`).
 
 Example:
 ```sh
@@ -83,10 +83,10 @@ $ mosquitto_pub -h broker -t signal/out -m '{"jsonrpc":"2.0","method":"send","pa
 The text _Outgoing message_ is sent to the phone.
 
 #### Receive
-To receive JSON RPC messages, subscribe to the receive topic (default: `signal/in`).
+To receive JSON RPC objects, subscribe to the receive topic (default: `signal/in`).
 
-Reception of JSON RPC messages is disabled by default.
-To enable it, set `MQTT_PUBLISH_JSON_RESPONSE` to `true`.
+Reception of JSON RPC objects is disabled by default.
+To enable it, set `MQTT_PUBLISH_JSONRPC` to `true`.
 You may additionally want to disable reception of messages on parameter topics
 by setting `MQTT_PUBLISH_TO_PARAMETER_TOPIC` to `false`.
 
@@ -111,7 +111,7 @@ Example:
 
 ### Send and receive messages via parameter topics
 Parameter topics have been designed for use cases
-where handling of complete JSON RPC messages is not suitable.
+where handling of complete JSON RPC objects is not suitable.
 They allow to send and receive commands in form of simple text messages,
 whereas all required metadata is managed in the MQTT topic.
 
@@ -122,7 +122,7 @@ A parameter topic has the following structure:
 
 It is composed of:
 - A prefix per direction,
-  defaulting to `signal/out` for outgoing and `signal/in` for incoming messages
+  defaulting to `signal/out` for outgoing and `signal/in` for incoming MQTT messages
 - The JSON RPC method, e.g. `send` or `receive`
 - An optional list of parameters. Each parameter is composed of a name and a value.
   Parameters may be in any order.
@@ -270,7 +270,7 @@ signal/in/method/receive/source_number/%2B491713920000/timestamp/1577882100000/r
 ```
 
 ##### Customization of topic parameters
-A JSON RPC message usually contains a lot of metadata parameters along with the main content.
+A JSON RPC object usually contains a lot of metadata parameters along with the main content.
 Most metadata parameters are not required for an average user,
 thus the parameters are filtered before building an MQTT topic.
 
@@ -279,7 +279,7 @@ are read from `/etc/signal-mqtt/topic-parameters` (within the container) once at
 The file contains a key/value pair per parameter.
 The key is used as parameter name in the topic. The value is a path expression in
 [dot notation](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Operators/Property_Accessors#dot_notation),
-representing the position of the value in JSON RPC messages. Example:
+representing the position of the value in JSON RPC objects. Example:
 ```
 # Restrict the topic to method, source number and group id.
 method        = method
@@ -357,8 +357,8 @@ The configuration is based on environment variables.
 |--------|-----------|-----|-------|-------
 |`MQTT_PUBLISH_OPTIONS`|MQTT publish options|All options [supported by `mosquitto_pub`](https://mosquitto.org/man/mosquitto_pub-1.html) except `-t` and `-m`|_none_|`-h broker -id signal-publisher`
 |`MQTT_PUBLISH_TOPIC`|MQTT topic for publishing messages received from Signal|[Topic names](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106)|`${MQTT_TOPIC_PREFIX}/in`|`chats/from`
-|`MQTT_PUBLISH_JSON_RESPONSE`|Publish JSON RPC responses from signal-cli?|`true` / `false`|`false`|`true`
-|`MQTT_PUBLISH_TO_PARAMETER_TOPIC`|Publish received messages to a parameter topic?|`true` / `false`|`true`|`false`
+|`MQTT_PUBLISH_JSONRPC`|Publish JSON RPC objects received from signal-cli?|`true` / `false`|`false`|`true`
+|`MQTT_PUBLISH_TO_PARAMETER_TOPIC`|Publish messages received from Signal to a parameter topic?|`true` / `false`|`true`|`false`
 |`MQTT_SUBSCRIBE_OPTIONS`|MQTT subscribe options|All options [supported by `mosquitto_sub`](https://mosquitto.org/man/mosquitto_sub-1.html) except `-t` and formatting-related options like  `-F` & `-N`|_none_|`-h broker -i signal-subscriber`
 |`MQTT_SUBSCRIBE_TOPIC`|MQTT topic to listen for messages that are sent to a Signal receiver|[Topic names](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106)|`${MQTT_TOPIC_PREFIX}/out`|`chats/to`
 |`MQTT_TOPIC_PREFIX`|Prefix for MQTT topics|[Topic names](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106)|`signal`|`chats`
@@ -366,10 +366,9 @@ The configuration is based on environment variables.
 |`MQTT_TOPIC_PARAMETERS_PATTERN`|Custom pattern for topic parameters|A regular expression containing named capturing groups|_none_|`(?<method>method)\|(?<source_number>params.envelope.sourceNumber)\|(?<group_id>params.envelope.dataMessage.groupInfo.groupId)`
 |`MQTT_LOG`|Enable logging via MQTT?|`true` / `false`|`false`|`true`
 |`MQTT_LOG_TOPIC`|MQTT topic to publish the log to|`${MQTT_TOPIC_PREFIX}/log`|`chats/logs`
-|`LOG_JSON_MESSAGES`|Enable logging of JSON RPC messages?|`true` / `false`|`false`|`true`
-|`DEBUG`|Enable debug logging?|`true` / `false`|`false`|`true`
-|`TRACE`|Enable trace logging?|`true` / `false`|`false`|`true`
+|`LOG_JSONRPC`|Enable logging of JSON RPC objects?|`true` / `false`|`false`|`true`
 |`SIGNAL_ACCOUNT`|Phone number of the signal account|International phone number format with leading `+`|Account from signal-cli configuration|`+493023125000`
+|`SIGNAL_CLI_OPTIONS`|signal-cli options|All options [supported by `signal-cli`](https://github.com/AsamK/signal-cli/blob/master/man/signal-cli.1.adoc#options)|_none_|`--trust-new-identities never -v`
 
 ## References
 * This project is an integration of
