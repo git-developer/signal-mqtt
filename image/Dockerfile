@@ -1,6 +1,5 @@
 FROM alpine
-RUN apk --no-cache add jq mosquitto-clients gcompat
-RUN apk --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing add signal-cli
+RUN apk --no-cache add jq mosquitto-clients gcompat signal-cli
 ENV HOME=/home
 ENV XDG_DATA_HOME="${HOME}/.local/share"
 COPY signal-mqtt /usr/local/bin/
