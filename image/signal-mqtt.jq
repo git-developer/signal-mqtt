@@ -60,9 +60,9 @@ def to_topic(pattern):
 ;
 
 def to_jsonrpc(message):
-  split("/") + ["message", $message] | {
+  split("/") | {
     jsonrpc: "2.0",
     (.[0]): .[1],
-    params: [. as $v | range(2; length; 2) | {($v[.]): $v[(.+1)] | cast}] | add
+    params: ([. as $v | range(2; length; 2) | {($v[.]): $v[(.+1)] | cast}] + [{message: $message}]) | add
   }
 ;
