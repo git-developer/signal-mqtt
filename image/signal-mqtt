@@ -110,26 +110,15 @@ publish_jsonrpc() {
 #   One JSON RPC object per incoming message
 #######################################
 subscribe_for_jsonrpc() {
+  export MQTT_SUBSCRIBE_TOPIC
   printf %s "${MQTT_SUBSCRIBE_OPTIONS}" \
-  | xargs mosquitto_sub -t "${MQTT_SUBSCRIBE_TOPIC}/#" -F '%t %x' \
-  | while read -r topic hex_message; do
-    message="$(echo "${hex_message}" | xxd -p -r)"
-    case "${topic}" in
-      "${MQTT_SUBSCRIBE_TOPIC}")
-        # message is expected to be a JSON RPC message
-        printf '%s\n' "${message}"
-        ;;
-      "${MQTT_SUBSCRIBE_TOPIC}"/*)
-        printf '%s\n' "${topic##${MQTT_SUBSCRIBE_TOPIC}/}" \
-        | jq --raw-input --compact-output --arg message "${message}" 'to_jsonrpc($message)'
-        ;;
-      *) log "Ignoring message on unsupported topic ${topic}" ;;
-    esac | if [ "${LOG_JSONRPC:-false}" = 'true' ]; then
-      { log "$(tee /dev/fd/3)"; } 3>&1
-    else
+  | xargs mosquitto_sub -t "${MQTT_SUBSCRIBE_TOPIC}/#" -F %j \
+  | jq --raw-output --compact-output 'to_jsonrpc(env.MQTT_SUBSCRIBE_TOPIC)' \
+  | if [ "${LOG_JSONRPC:-false}" != 'true' ]; then
       cat -
+    else
+      while read -r line; do echo "${line}"; log "${line}"; done
     fi
-  done
 }
 
 #######################################

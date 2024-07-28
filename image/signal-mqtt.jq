@@ -37,13 +37,15 @@ def cast:
     else .
     end;
 
-  split(":")
+  (select(. != null)
+  | split(":")
   | .[1] as $type_id
   | .[0] | split(",") | map(url_decode)
   | if length > 1 or ($type_id and ($type_id | endswith("[]")))
     then map(cast_scalar($type_id | rtrimstr("[]")))
     else .[0] | cast_scalar($type_id)
     end
+  ) // null
 ;
 
 def to_topic(pattern):
@@ -59,10 +61,15 @@ def to_topic(pattern):
   ] | @tsv
 ;
 
-def to_jsonrpc(message):
-  split("/") | {
-    jsonrpc: "2.0",
-    (.[0]): .[1],
-    params: ([. as $v | range(2; length; 2) | {($v[.]): $v[(.+1)] | cast}] + [{message: $message}]) | add
-  }
+def to_jsonrpc($base_topic):
+  .payload as $message
+  | .topic
+  | (capture($base_topic + "/(?<topic>.+)").topic
+     | split("/")
+     | {
+          jsonrpc: "2.0",
+          (.[0]): .[1],
+          params: ([. as $v | range(2; length; 2) | {($v[.]): $v[(.+1)] | cast}] + [{message: $message}]) | add
+       }
+    ) // $message
 ;
