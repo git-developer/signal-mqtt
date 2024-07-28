@@ -111,10 +111,12 @@ publish_jsonrpc() {
 #######################################
 subscribe_for_jsonrpc() {
   printf %s "${MQTT_SUBSCRIBE_OPTIONS}" \
-  | xargs mosquitto_sub -t "${MQTT_SUBSCRIBE_TOPIC}/#" -v \
-  | while read -r topic message; do
+  | xargs mosquitto_sub -t "${MQTT_SUBSCRIBE_TOPIC}/#" -F '%t %x' \
+  | while read -r topic hex_message; do
+    message="$(echo "${hex_message}" | xxd -p -r)"
     case "${topic}" in
       "${MQTT_SUBSCRIBE_TOPIC}")
+        # message is expected to be a JSON RPC message
         printf '%s\n' "${message}"
         ;;
       "${MQTT_SUBSCRIBE_TOPIC}"/*)
