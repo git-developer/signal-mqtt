@@ -370,6 +370,66 @@ The configuration is based on environment variables.
 |`SIGNAL_ACCOUNT`|Phone number of the signal account|International phone number format with leading `+`|Account from signal-cli configuration|`+493023125000`
 |`SIGNAL_CLI_OPTIONS`|signal-cli options|All options [supported by `signal-cli`](https://github.com/AsamK/signal-cli/blob/master/man/signal-cli.1.adoc#options) except `-a` and `-o`|_none_|`--trust-new-identities never -v`
 
+## FHEM integration
+The section contains example configurations for integration into [FHEM](https://fhem.de).
+
+It is possible to create either 1 FHEM device per contact or a single FHEM device for all contacts, or both.
+
+### FHEM device per Signal contact or group
+#### Contact
+- Create a device:
+  ```
+  define mqtt_signal_user_sally MQTT2_DEVICE
+  attr   mqtt_signal_user_sally devicetopic %2B491713920000
+  attr   mqtt_signal_user_sally readingList signal/in/method/receive/source_number/$DEVICETOPIC/timestamp/[^/]+ message
+  attr   mqtt_signal_user_sally setList message signal/out/method/send/recipient/$DEVICETOPIC
+  ```
+- Send a message: `set mqtt_signal_user_sally message FHEM greets Sally`
+
+#### Group
+- Create a device:
+  ```
+  define mqtt_signal_group_admins MQTT2_DEVICE
+  attr   mqtt_signal_group_admins devicetopic LS0%2BYWRtaW5zPz8%2FCg%3D%3D
+  attr   mqtt_signal_group_admins readingList signal/in/method/receive/source_number/[^/]+/timestamp/[^/]+/group_id/$DEVICETOPIC:.* message
+  attr   mqtt_signal_group_admins setList message signal/out/method/send/groupId/$DEVICETOPIC
+  ```
+- Send a message: `set mqtt_signal_group_admins message FHEM greets Admins`
+
+### Single device
+This configuration creates a single device that receives all messages.
+Readings `sourceName`, `message`, and `groupId` are updated when a message arrives.
+All remaining message parameters are available as readings prefixed with `json_params_`.
+
+
+- Requirement: Enable publishing of JSON messages in `compose.yml`:
+  ```yml
+  services:
+    signal-mqtt:
+      environment:
+        MQTT_PUBLISH_JSONRPC: "true"
+  ```
+
+- Create the device:
+  ```
+  define mqtt_signal MQTT2_DEVICE
+  attr   mqtt_signal devicetopic signal/in
+  attr   mqtt_signal readingList $DEVICETOPIC:.* { json2nameValue($EVENT, 'json_', $JSONMAP) }
+  attr   mqtt_signal jsonMap \
+                       json_params_envelope_sourceName:sourceName \
+                       json_params_envelope_dataMessage_message:message \
+                       json_params_envelope_dataMessage_groupInfo_groupId:groupId
+  attr   mqtt_signal stateFormat sourceName: message
+  ```
+
+- It is optionally possible to introduce a reading `groupName`. This implementation requires a user attribute `groups` with a space-separated list of key/value pairs containing a mapping from groupId to groupName.
+  ```
+  attr   mqtt_signal userattr groups
+  attr   mqtt_signal groups LS0+YWRtaW5zPz8/Cg== Admins
+  attr   mqtt_signal userReadings groupName:groupId.+ \
+           { my %groups = split(' ', AttrVal($NAME, 'groups', undef)); return $groups{ReadingsVal($NAME, 'groupId', undef)}; }
+  ```
+
 ## References
 * This project is an integration of
   * [signal-cli](https://github.com/AsamK/signal-cli/) - A commandline interface for [Signal](https://signal.org/)
