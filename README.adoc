@@ -48,7 +48,7 @@ signal/out/method/send/recipient/%2B491713920000 Outgoing message
 
 == Requirements
 * A phone number that is registered as a Signal account
-  (see https://github.com/AsamK/signal-cli/wiki/Registration-with-captcha)[Registration with captcha])
+  (see https://github.com/AsamK/signal-cli/wiki/Registration-with-captcha[Registration with captcha])
 * Docker Compose
 + 
 The https://docs.docker.com/compose/install/[Docker Compose documentation]
