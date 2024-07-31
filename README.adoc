@@ -387,7 +387,7 @@ The configuration is based on environment variables.
 |`MQTT_TOPIC_PARAMETERS_FILE`|Custom filter file for topic parameters|File paths|_none_|`/home/custom-topic-parameters`
 |`MQTT_TOPIC_PARAMETERS_PATTERN`|Custom pattern for topic parameters|A regular expression containing named capturing groups|_none_|`(?<method>method)\|(?<source_number>params.envelope.sourceNumber)\|(?<group_id>params.envelope.dataMessage.groupInfo.groupId)`
 |`MQTT_LOG`|Enable logging via MQTT?|`true` / `false`|`false`|`true`
-|`MQTT_LOG_TOPIC`|MQTT topic to publish the log to|`${MQTT_TOPIC_PREFIX}/log`|`chats/logs`
+|`MQTT_LOG_TOPIC`|MQTT topic to publish the log to|http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106[Topic names]|`${MQTT_TOPIC_PREFIX}/log`|`chats/logs`
 |`LOG_JSONRPC`|Enable logging of JSON RPC objects?|`true` / `false`|`false`|`true`
 |`SIGNAL_ACCOUNT`|Phone number of the signal account|International phone number format with leading `+`|Account from signal-cli configuration|`+493023125000`
 |`SIGNAL_CLI_OPTIONS`|signal-cli options|All options https://github.com/AsamK/signal-cli/blob/master/man/signal-cli.1.adoc#options[supported by `signal-cli`] except `-a` and `-o`|_none_|`--trust-new-identities never -v`
