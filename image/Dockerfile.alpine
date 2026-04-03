@@ -11,7 +11,7 @@ RUN <<EOF
     apk --no-cache add signal-cli
   else
     mkdir -p /usr/share/java/signal-cli
-    wget -q -O - "https://api.github.com/repos/${REPO}/releases/latest" |
+    wget -q -O - "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" |
       jq -r '.assets[] | select(.name | test("^signal-cli-[^-]+\\.tar\\.gz$")).browser_download_url' |
       xargs wget -O - |
       tar x -z -C /usr/share/java/signal-cli --strip-components 1
