@@ -33,7 +33,7 @@ jobs:
 ## TODO BASE_IMAGE
         base_image: [alpine, registry.gitlab.com/packaging/signal-cli/signal-cli-jre]
 #        base_image: [alpine, ghcr.io/AsamK/signal-cli, registry.gitlab.com/packaging/signal-cli/signal-cli-jre]
-        source: distro
+        source: [distro]
 
         include:
           - base_image: ghcr.io/AsamK/signal-cli
