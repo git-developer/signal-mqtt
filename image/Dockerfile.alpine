@@ -8,7 +8,7 @@ RUN <<EOF
   set -euo pipefail
 
   if [ -z "${GITHUB_REPO-}" ]; then
-    apk --no-cache add signal-cli ;;
+    apk --no-cache add signal-cli
   else
     mkdir -p /usr/share/java/signal-cli
     wget -q -O - "https://api.github.com/repos/${REPO}/releases/latest" |
