@@ -38,28 +38,6 @@ jobs:
         include:
           - platform: linux/amd64
             os: ubuntu-latest
-          - platform: linux/arm64
-            os: ubuntu-24.04-arm
-
-          - base_image: ghcr.io/AsamK/signal-cli
-            buildfile: ubuntu
-            platform: linux/amd64
-            os: ubuntu-latest
-
-          - base_image: registry.gitlab.com/packaging/signal-cli/signal-cli-jre
-            buildfile: ubuntu
-          - base_image: registry.gitlab.com/packaging/signal-cli/signal-cli-jre
-            buildfile: ubuntu
-            source: community
-
-          - base_image: alpine
-            buildfile: alpine
-          - base_image: alpine
-            buildfile: alpine
-            distro: project
-
-          - platform: linux/amd64
-            os: ubuntu-latest
             buildfile: ubuntu
             base_image: ghcr.io/asamk/signal-cli
 
