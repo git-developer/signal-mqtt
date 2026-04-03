@@ -117,14 +117,13 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        - buildfile: ubuntu
-          source: project
-        - buildfile: ubuntu
-          source: community
-        - buildfile: alpine
-          source: distro
-        - buildfile: alpine
-          source: project
+        buildfile: [ubuntu, alpine]
+        source: [project, community, distro]
+        exclude:
+          - buildfile: ubuntu
+            source: distro
+          - buildfile: alpine
+            source: community
     steps:
       -
         name: Download digests
