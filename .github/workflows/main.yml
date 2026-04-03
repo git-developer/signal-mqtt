@@ -25,40 +25,33 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        - platform: linux/amd64
-          os: ubuntu-latest
-          buildfile: ubuntu
-          base_image: ghcr.io/asamk/signal-cli
-          source: project
+        platform: [linux/amd64, linux/arm64]
+#        os: [ubuntu-latest, ubuntu-24.04-arm]
+        buildfile: [ubuntu, alpine]
+#        source: [project, community, distro]
 
+#      exclude:
+#        - platform: linux/arm64
+#          os: ubuntu-latest
+#        - platform: linux/amd64
+#          os: ubuntu-24.04-arm
+#        - buildfile: alpine
+#          source: community
+#        - buildfile: ubuntu
+#          source: distro
+      include:
         - platform: linux/amd64
           os: ubuntu-latest
-          buildfile: ubuntu
-          base_image: registry.gitlab.com/packaging/signal-cli/signal-cli-jre
+        - platform: linux/arm64
+          os: ubuntu-24.04-arm
+        - buildfile: ubuntu
+          source: project
+        - buildfile: ubuntu
           source: community
-        - platform: linux/arm64
-          os: ubuntu-24.04-arm
-          buildfile: ubuntu
-          base_image: registry.gitlab.com/packaging/signal-cli/signal-cli-jre
-          source: community
-
-        - platform: linux/amd64
-          os: ubuntu-latest
-          buildfile: alpine
-          source: distro
-        - platform: linux/arm64
-          os: ubuntu-24.04-arm
-          buildfile: alpine
-          source: distro
-
-        - platform: linux/amd64
-          os: ubuntu-latest
-          buildfile: alpine
+        - buildfile: alpine
           source: project
-        - platform: linux/arm64
-          os: ubuntu-24.04-arm
-          buildfile: alpine
-          source: project
+        - buildfile: alpine
+          source: distro
 
     steps:
       -
