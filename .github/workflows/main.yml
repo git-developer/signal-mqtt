@@ -120,12 +120,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        suffix: ["", community, alpine, latest]
-        exclude:
-          - buildfile: ubuntu
-            source: distro
-          - buildfile: alpine
-            source: community
+        suffix: ["", -community, -alpine, -latest]
     steps:
       -
         name: Download digests
