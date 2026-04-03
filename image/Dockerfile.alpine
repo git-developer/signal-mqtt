@@ -2,31 +2,22 @@
 
 ARG BASE_IMAGE=alpine
 FROM ${BASE_IMAGE}
-ARG REPO=AsamK/signal-cli
-ARG SOURCE=distro
+ARG GITHUB_REPO
 RUN apk --no-cache add jq mosquitto-clients
 RUN <<EOF
   set -euo pipefail
 
-  main() {
-    install_from_github() {
-      mkdir -p /usr/share/java/signal-cli
-      wget -q -O - "https://api.github.com/repos/${REPO}/releases/latest" |
-        jq -r '.assets[] | select(.name | test("^signal-cli-[^-]+\\.tar\\.gz$")).browser_download_url' |
-        xargs wget -O - |
-        tar x -z -C /usr/share/java/signal-cli --strip-components 1
-      ln -s /usr/share/java/signal-cli/bin/signal-cli /usr/bin/
-      apk --no-cache add openjdk25-jre-headless gcompat
-    }
-
-    case "${SOURCE}" in
-      distro) apk --no-cache add signal-cli ;;
-      project) install_from_github ;;
-      *) echo >&2 "Unsupported source: ${SOURCE}" && return 1
-    esac
-  }
-
-  main "$@"
+  if [ -z "${GITHUB_REPO-}" ]; then
+    apk --no-cache add signal-cli ;;
+  else
+    mkdir -p /usr/share/java/signal-cli
+    wget -q -O - "https://api.github.com/repos/${REPO}/releases/latest" |
+      jq -r '.assets[] | select(.name | test("^signal-cli-[^-]+\\.tar\\.gz$")).browser_download_url' |
+      xargs wget -O - |
+      tar x -z -C /usr/share/java/signal-cli --strip-components 1
+    ln -s /usr/share/java/signal-cli/bin/signal-cli /usr/bin/
+    apk --no-cache add openjdk25-jre-headless gcompat
+  fi
 EOF
 
 ENV HOME=/home

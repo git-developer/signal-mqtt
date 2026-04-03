@@ -31,40 +31,34 @@ jobs:
             os: ubuntu-latest
             buildfile: ubuntu
             base_image: ghcr.io/asamk/signal-cli
-            source: project
+          - platform: linux/amd64
+            os: ubuntu-latest
+            buildfile: alpine
+            base_image: alpine
+            github_repo: AsamK/signal-cli
+            suffix: '-latest'
 
           - platform: linux/amd64
             os: ubuntu-latest
             buildfile: ubuntu
             base_image: registry.gitlab.com/packaging/signal-cli/signal-cli-jre
-            source: community
+            suffix: '-community'
           - platform: linux/arm64
             os: ubuntu-24.04-arm
             buildfile: ubuntu
             base_image: registry.gitlab.com/packaging/signal-cli/signal-cli-jre
-            source: community
+            suffix: '-community'
 
           - platform: linux/amd64
             os: ubuntu-latest
             buildfile: alpine
             base_image: alpine
-            source: distro
+            suffix: '-alpine'
           - platform: linux/arm64
             os: ubuntu-24.04-arm
             buildfile: alpine
             base_image: alpine
-            source: distro
-
-          - platform: linux/amd64
-            os: ubuntu-latest
-            buildfile: alpine
-            base_image: alpine
-            source: project
-          - platform: linux/arm64
-            os: ubuntu-24.04-arm
-            buildfile: alpine
-            base_image: alpine
-            source: project
+            suffix: '-alpine'
 
     steps:
       -
@@ -100,7 +94,7 @@ jobs:
           file: image/Dockerfile.${{ matrix.buildfile }}
           build-args: |
             BASE_IMAGE=${{ matrix.base_image }}
-            SOURCE=${{ matrix.source }}
+            GITHUB_REPO=${{ matrix.github_repo }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
@@ -114,7 +108,7 @@ jobs:
         name: Upload digest
         uses: actions/upload-artifact@v7
         with:
-          name: digests-${{ matrix.buildfile }}-${{ matrix.source }}-${{ env.PLATFORM_PAIR }}
+          name: digests${{ matrix.suffix }}-${{ env.PLATFORM_PAIR }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -126,8 +120,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        buildfile: [ubuntu, alpine]
-        source: [project, community, distro]
+        suffix: ["", community, alpine, latest]
         exclude:
           - buildfile: ubuntu
             source: distro
@@ -139,7 +132,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
-          pattern: digests-${{ matrix.buildfile }}-${{ matrix.source }}*
+          pattern: digests${{ matrix.suffix }}-*
           merge-multiple: true
       -
         name: Set up Docker Buildx
@@ -161,7 +154,7 @@ jobs:
         name: Create manifest list and push
         working-directory: /tmp/digests
         run: |
-          docker buildx imagetools create $(jq -cr '.tags | map("-t " + . + "-${{ matrix.buildfile }}-${{ matrix.source }}") | join(" ")' <<< "${DOCKER_METADATA_OUTPUT_JSON}") \
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + . + "${{ matrix.suffix }}") | join(" ")' <<< "${DOCKER_METADATA_OUTPUT_JSON}") \
             $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
       -
         name: Inspect image
