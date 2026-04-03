@@ -6,6 +6,7 @@ FROM ${BASE_IMAGE}
 USER root
 RUN apt-get update && apt-get install -y jq mosquitto-clients
 USER signal-cli
+ENV PATH="${PATH}:/opt/signal-cli/bin"
 ENTRYPOINT [ "/bin/bash" ]
 
 ENV HOME=/home
