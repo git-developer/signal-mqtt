@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1
+
+ARG BASE_IMAGE=ghcr.io/asamk/signal-cli
+FROM $BASE_IMAGE
+
+USER root
+RUN apt-get update && apt-get install -y jq mosquitto-clients
+USER signal-cli
+ENTRYPOINT [ "/bin/bash" ]
+
+ENV HOME=/home
+ENV XDG_DATA_HOME="${HOME}/.local/share"
+COPY signal-mqtt /usr/local/bin/
+COPY signal-mqtt.jq "${HOME}/.jq"
+COPY topic-parameters /etc/signal-mqtt/
+CMD [ "signal-mqtt" ]

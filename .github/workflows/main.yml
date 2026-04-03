@@ -21,13 +21,45 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
       matrix:
-        platform:
-          - linux/amd64
-          - linux/arm64
+        - platform: linux/amd64
+          os: ubuntu-latest
+          buildfile: ubuntu
+          base_image: ghcr.io/asamk/signal-cli
+          source: project
+
+        - platform: linux/amd64
+          os: ubuntu-latest
+          buildfile: ubuntu
+          base_image: registry.gitlab.com/packaging/signal-cli/signal-cli-jre
+          source: community
+        - platform: linux/arm64
+          os: ubuntu-24.04-arm
+          buildfile: ubuntu
+          base_image: registry.gitlab.com/packaging/signal-cli/signal-cli-jre
+          source: community
+
+        - platform: linux/amd64
+          os: ubuntu-latest
+          buildfile: alpine
+          source: distro
+        - platform: linux/arm64
+          os: ubuntu-24.04-arm
+          buildfile: alpine
+          source: distro
+
+        - platform: linux/amd64
+          os: ubuntu-latest
+          buildfile: alpine
+          source: project
+        - platform: linux/arm64
+          os: ubuntu-24.04-arm
+          buildfile: alpine
+          source: project
+
     steps:
       -
         name: Prepare
@@ -43,15 +75,15 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY_IMAGE }}
-      -
-        name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+#      -
+#        name: Set up QEMU
+#        uses: docker/setup-qemu-action@v4
       -
         name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       -
         name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -59,11 +91,16 @@ jobs:
       -
         name: Build and push by digest
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: image
+          file: image/Dockerfile.${{ matrix.buildfile }}
+          build-args: |
+            BASE_IMAGE: ${{ matrix.base_image }}
+            SOURCE: ${{ matrix.source }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ matrix.buildfile }}-${{ matrix.source }}
           outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
       -
         name: Export digest
@@ -73,9 +110,9 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
       -
         name: Upload digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: digests-${{ env.PLATFORM_PAIR }}
+          name: digests-${{ env.PLATFORM_PAIR }}-${{ matrix.buildfile }}-${{ matrix.source }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -84,26 +121,37 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build
+    strategy:
+      fail-fast: true
+      matrix:
+        - buildfile: ubuntu
+          source: project
+        - buildfile: ubuntu
+          source: community
+        - buildfile: alpine
+          source: distro
+        - buildfile: alpine
+          source: project
     steps:
       -
         name: Download digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
-          pattern:  digests-*
+          pattern:  digests-${{ matrix.buildfile }}-${{ matrix.source }}*
           merge-multiple: true
       -
         name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       -
         name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY_IMAGE }}
       -
         name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}

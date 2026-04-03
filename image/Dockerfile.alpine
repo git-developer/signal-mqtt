@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1
+
+ARG BASE_IMAGE=alpine
+FROM $BASE_IMAGE
+ARG REPO=AsamK/signal-cli
+ARG SOURCE=distro
+RUN apk --no-cache add jq mosquitto-clients
+RUN <<EOF
+  set -euo pipefail
+
+  main() {
+    install_from_github() {
+      mkdir -p /usr/share/java/signal-cli
+      wget -q -O - "https://api.github.com/repos/${REPO}/releases/latest" |
+        jq -r '.assets[] | select(.name | test("^signal-cli-[^-]+\\.tar\\.gz$")).browser_download_url' |
+        xargs wget -O - |
+        tar x -z -C /usr/share/java/signal-cli --strip-components 1
+      ln -s /usr/share/java/signal-cli/bin/signal-cli /usr/bin/
+      apk --no-cache add openjdk25-jre-headless gcompat
+    }
+
+    case "${SOURCE}" in
+      distro) apk --no-cache add signal-cli ;;
+      project) install_from_github ;;
+      *) echo >&2 "Unsupported source: ${SOURCE}" && return 1
+    esac
+  }
+
+  main "$@"
+EOF
+
+ENV HOME=/home
+ENV XDG_DATA_HOME="${HOME}/.local/share"
+COPY signal-mqtt /usr/local/bin/
+COPY signal-mqtt.jq "${HOME}/.jq"
+COPY topic-parameters /etc/signal-mqtt/
+CMD [ "signal-mqtt" ]
