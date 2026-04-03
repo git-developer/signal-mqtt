@@ -27,18 +27,42 @@ jobs:
       fail-fast: true
       matrix:
         platform: [linux/amd64, linux/arm64]
-        os: [ubuntu-latest, ubuntu-24.04-arm]
-        buildfile: [ubuntu, alpine]
-        source: [project, community, distro]
-        exclude:
-          - platform: linux/arm64
-            os: ubuntu-latest
-          - platform: linux/amd64
-            os: ubuntu-24.04-arm
-          - buildfile: alpine
+#        os: [ubuntu-latest, ubuntu-24.04-arm]
+#        buildfile: [ubuntu, alpine]
+#        source: [project, community, distro]
+## TODO BASE_IMAGE
+        base_image: [alpine, registry.gitlab.com/packaging/signal-cli/signal-cli-jre]
+#        base_image: [alpine, ghcr.io/AsamK/signal-cli, registry.gitlab.com/packaging/signal-cli/signal-cli-jre]
+        source: distro
+
+        include:
+          - base_image: ghcr.io/AsamK/signal-cli
+            buildfile: ubuntu
+            platform: linux/amd64
+
+          - base_image: registry.gitlab.com/packaging/signal-cli/signal-cli-jre
+            buildfile: ubuntu
+          - base_image: registry.gitlab.com/packaging/signal-cli/signal-cli-jre
+            buildfile: ubuntu
             source: community
-          - buildfile: ubuntu
-            source: distro
+
+          - base_image: alpine
+            buildfile: alpine
+          - base_image: alpine
+            buildfile: alpine
+            distro: project
+
+#        exclude:
+#          - platform: linux/arm64
+#            os: ubuntu-latest
+#          - platform: linux/amd64
+#            os: ubuntu-24.04-arm
+#          - buildfile: alpine
+#            source: community
+#          - buildfile: ubuntu
+#            source: distro
+
+
 
 #        include:
 #          - platform: linux/amd64
@@ -53,7 +77,7 @@ jobs:
 #            source: project
 #          - buildfile: alpine
 #            source: distro
-
+#
     steps:
       -
         name: Prepare
@@ -90,6 +114,7 @@ jobs:
           context: image
           file: image/Dockerfile.${{ matrix.buildfile }}
           build-args: |
+            BASE_IMAGE=${{ matrix.base_image }}
             SOURCE=${{ matrix.source }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
