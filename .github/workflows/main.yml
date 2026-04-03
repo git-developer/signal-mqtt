@@ -90,7 +90,6 @@ jobs:
           context: image
           file: image/Dockerfile.${{ matrix.buildfile }}
           build-args: |
-            BASE_IMAGE=${{ matrix.base_image }}
             SOURCE=${{ matrix.source }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
