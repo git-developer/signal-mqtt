@@ -40,6 +40,7 @@ jobs:
             os: ubuntu-latest
             buildfile: ubuntu
             base_image: ghcr.io/asamk/signal-cli
+            source: project
 
           - platform: linux/amd64
             os: ubuntu-latest
