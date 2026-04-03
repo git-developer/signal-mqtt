@@ -39,19 +39,19 @@ jobs:
 #          source: community
 #        - buildfile: ubuntu
 #          source: distro
-      include:
-        - platform: linux/amd64
-          os: ubuntu-latest
-        - platform: linux/arm64
-          os: ubuntu-24.04-arm
-        - buildfile: ubuntu
-          source: project
-        - buildfile: ubuntu
-          source: community
-        - buildfile: alpine
-          source: project
-        - buildfile: alpine
-          source: distro
+        include:
+          - platform: linux/amd64
+            os: ubuntu-latest
+          - platform: linux/arm64
+            os: ubuntu-24.04-arm
+          - buildfile: ubuntu
+            source: project
+          - buildfile: ubuntu
+            source: community
+          - buildfile: alpine
+            source: project
+          - buildfile: alpine
+            source: distro
 
     steps:
       -
