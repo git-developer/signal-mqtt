@@ -3,9 +3,10 @@ name: docker build
 on:
   push:
     branches:
-      - "main"
+      - main
+      - feature/multi-source
     paths-ignore:
-      - 'LICENSE'
+      - LICENSE
       - 'README.*'
   release:
     types: [published]
@@ -29,15 +30,15 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm]
         buildfile: [ubuntu, alpine]
         source: [project, community, distro]
-      exclude:
-        - platform: linux/arm64
-          os: ubuntu-latest
-        - platform: linux/amd64
-          os: ubuntu-24.04-arm
-        - buildfile: alpine
-          source: community
-        - buildfile: ubuntu
-          source: distro
+        exclude:
+          - platform: linux/arm64
+            os: ubuntu-latest
+          - platform: linux/amd64
+            os: ubuntu-24.04-arm
+          - buildfile: alpine
+            source: community
+          - buildfile: ubuntu
+            source: distro
 
 #        include:
 #          - platform: linux/amd64
