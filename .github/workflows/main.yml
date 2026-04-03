@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feature/multi-source
     paths-ignore:
       - LICENSE
       - 'README.*'
