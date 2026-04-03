@@ -17,7 +17,7 @@ The signal-cli documentation contains a list of all https://github.com/AsamK/sig
 ----
 services:
   signal-mqtt:
-    image: git-developer/signal-mqtt
+    image: ghcr.io/git-developer/signal-mqtt
     container_name: signal-mqtt
     restart: unless-stopped
     init: true
