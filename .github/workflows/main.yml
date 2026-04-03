@@ -1,12 +1,6 @@
 name: docker build
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - LICENSE
-      - 'README.*'
   release:
     types: [published]
   workflow_dispatch:
@@ -126,7 +120,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
-          pattern: digests${{ matrix.suffix }}-*
+          pattern: digests${{ matrix.suffix }}-linux-*
           merge-multiple: true
       -
         name: Set up Docker Buildx
