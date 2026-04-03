@@ -103,7 +103,6 @@ jobs:
             SOURCE=${{ matrix.source }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-#          tags: ${{ env.REGISTRY_IMAGE }}:${{ matrix.buildfile }}-${{ matrix.source }}
           outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
       -
         name: Export digest
@@ -162,7 +161,7 @@ jobs:
         name: Create manifest list and push
         working-directory: /tmp/digests
         run: |
-          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "${DOCKER_METADATA_OUTPUT_JSON}") \
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + . + "-${{ matrix.buildfile }}-${{ matrix.source }}") | join(" ")' <<< "${DOCKER_METADATA_OUTPUT_JSON}") \
             $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
       -
         name: Inspect image
