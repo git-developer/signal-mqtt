@@ -90,12 +90,12 @@ jobs:
           context: image
           file: image/Dockerfile.${{ matrix.buildfile }}
           build-args: |
-            BASE_IMAGE: ${{ matrix.base_image }}
-            SOURCE: ${{ matrix.source }}
+            BASE_IMAGE=${{ matrix.base_image }}
+            SOURCE=${{ matrix.source }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          tags: ${{ matrix.buildfile }}-${{ matrix.source }}
-          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+#          tags: ${{ env.REGISTRY_IMAGE }}:${{ matrix.buildfile }}-${{ matrix.source }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }}-${{ matrix.buildfile }}-${{ matrix.source }},push-by-digest=true,name-canonical=true,push=true
       -
         name: Export digest
         run: |
