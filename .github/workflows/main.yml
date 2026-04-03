@@ -26,15 +26,6 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-#        platform: [linux/amd64, linux/arm64]
-#        os: [ubuntu-latest, ubuntu-24.04-arm]
-#        buildfile: [ubuntu, alpine]
-#        source: [project, community, distro]
-## TODO BASE_IMAGE
-#        base_image: [alpine, registry.gitlab.com/packaging/signal-cli/signal-cli-jre]
-#        base_image: [alpine, ghcr.io/AsamK/signal-cli, registry.gitlab.com/packaging/signal-cli/signal-cli-jre]
-#        source: [distro]
-
         include:
           - platform: linux/amd64
             os: ubuntu-latest
@@ -47,7 +38,6 @@ jobs:
             buildfile: ubuntu
             base_image: registry.gitlab.com/packaging/signal-cli/signal-cli-jre
             source: community
-
           - platform: linux/arm64
             os: ubuntu-24.04-arm
             buildfile: ubuntu
@@ -76,33 +66,6 @@ jobs:
             base_image: alpine
             source: project
 
-
-#        exclude:
-#          - platform: linux/arm64
-#            os: ubuntu-latest
-#          - platform: linux/amd64
-#            os: ubuntu-24.04-arm
-#          - buildfile: alpine
-#            source: community
-#          - buildfile: ubuntu
-#            source: distro
-
-
-
-#        include:
-#          - platform: linux/amd64
-#            os: ubuntu-latest
-#          - platform: linux/arm64
-#            os: ubuntu-24.04-arm
-#          - buildfile: ubuntu
-#            source: project
-#          - buildfile: ubuntu
-#            source: community
-#          - buildfile: alpine
-#            source: project
-#          - buildfile: alpine
-#            source: distro
-#
     steps:
       -
         name: Prepare
@@ -111,16 +74,13 @@ jobs:
           echo "PLATFORM_PAIR=${platform//\//-}" >>"${GITHUB_ENV}"
       -
         name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       -
         name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY_IMAGE }}
-#      -
-#        name: Set up QEMU
-#        uses: docker/setup-qemu-action@v4
       -
         name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -155,7 +115,7 @@ jobs:
         name: Upload digest
         uses: actions/upload-artifact@v7
         with:
-          name: digests-${{ env.PLATFORM_PAIR }}-${{ matrix.buildfile }}-${{ matrix.source }}
+          name: digests-${{ matrix.buildfile }}-${{ matrix.source }}-${{ env.PLATFORM_PAIR }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -180,7 +140,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
-          pattern:  digests-${{ matrix.buildfile }}-${{ matrix.source }}*
+          pattern: digests-${{ matrix.buildfile }}-${{ matrix.source }}*
           merge-multiple: true
       -
         name: Set up Docker Buildx
