@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG BASE_IMAGE=alpine:edge
+ARG BASE_IMAGE=alpine
 FROM ${BASE_IMAGE}
 RUN apk --no-cache add jq mosquitto-clients signal-cli
 ENV HOME=/home
