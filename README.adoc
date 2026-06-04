@@ -5,7 +5,7 @@ An adapter between MQTT and signal-cli https://github.com/AsamK/signal-cli/wiki/
 
 This project allows to send and receive messages between MQTT clients and Signal messengers.
 This includes, but is not limited to, sending and receiving of text messages,
-quotations and emojis to/from Signal accounts and groups.
+attachments, quotations and emojis to/from Signal accounts and groups.
 The signal-cli documentation contains a list of all https://github.com/AsamK/signal-cli/blob/master/man/signal-cli.1.adoc#commands[supported commands].
 
 == Quick start
@@ -130,13 +130,14 @@ whereas all required metadata is managed in the MQTT topic.
 ==== Topic structure
 A parameter topic has the following structure:
 
-_<PREFIX>_ `/method/` _<METHOD>_ [`/` _<PARAMETER_NAME>_ `/` _<PARAMETER_VALUE>_ ]…
+_<PREFIX>_ `/method/` _<METHOD>_ [`:` _<PAYLOAD_NAME>_ ] [`/` _<PARAMETER_NAME>_ `/` _<PARAMETER_VALUE>_ ]…
 
 It is composed of:
 
 * A prefix per direction,
   defaulting to `signal/out` for outgoing and `signal/in` for incoming MQTT messages
 * The JSON RPC method, e.g. `send` or `receive`
+* An optional name for the payload parameter, defaulting to `message`
 * An optional list of parameters. Each parameter is composed of a name and a value.
   Parameters may be in any order.
 
@@ -206,6 +207,12 @@ The text _Outgoing message_ is sent to the phone, quoting a message sent from `+
 $ mosquitto_pub -h broker -t signal/out/method/send/groupId/LS0%2BYWRtaW5zPz8%2FCg%3D%3D -m 'Outgoing message'
 ```
 The text _Outgoing message_ is sent to the group _Admins_.
+
+====== Send an attachment
+```sh
+$ mosquitto_pub -h broker -t signal/out/method/send:attachment/recipient/%2B491713920000 -m 'data:image/png;base64,iVBORw0K…'
+```
+The BASE64 encoded image attachment is sent to the phone.
 
 ===== Value types
 By default, the type of a parameter value is derived from its content.

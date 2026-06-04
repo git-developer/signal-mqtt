@@ -64,26 +64,33 @@ def to_topic(pattern):
 #                without parameters. Example: 'signal/in'.
 #
 # Algorithm:
-# 1.) Extract the message from property 'payload'
+# 1.) Extract the payload from property 'payload'
 # 2.) Check if the topic contains parameters. If not, return the original
-#     message, which is expected to be a valid JSON-RPC message for signal-cli
+#     payload, which is expected to be a valid JSON-RPC message for signal-cli
 #     Example: $base_topic = 'signal/in'
-# 3.) Extract parameters. They are expected to begin with the method
-#     and consist of key-value pairs.
-#     Example: 'method/receive' and 'source_number/%2B491713920000'
+# 3.) Extract parameters from key-value pairs. The first pair is expected as
+#       'method/' + <method-value> + [ ':' + <payload-key> ]
+#     where payload-key is optional and defaults to 'message'.
+#     Examples:
+#      'method/receive' and 'source_number/%2B491713920000'
+#      'method/send:attachment' and 'source_number/%2B491713920000'
 # 4.) Build a JSON-RPC message. Put the method in the root object.
 #     Put all other parameters into the params object.
-#     Add the payload as 'message' parameter.
+#     Add a parameter for the payload.
 ##
 def to_jsonrpc($base_topic):
-  .payload as $message
+  .payload as $payload
   | .topic
   | (capture($base_topic + "/(?<params>.+)").params
      | split("/")
+     | .[0] as $methodKey
+     | (.[1] | split(":")) as $methodValue
+     | ($methodValue[0]) as $method
+     | ($methodValue[1] // "message") as $payloadKey
      | {
           jsonrpc: "2.0",
-          (.[0]): .[1],
-          params: ([. as $v | range(2; length; 2) | {($v[.]): $v[(.+1)] | cast}] + [{message: $message}]) | add
+          ($methodKey): $method,
+          params: ([. as $v | range(2; length; 2) | {($v[.]): $v[(.+1)] | cast}] + [{($payloadKey): $payload}]) | add
        }
-    ) // $message
+    ) // $payload
 ;
